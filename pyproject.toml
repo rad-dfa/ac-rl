@@ -1,0 +1,7 @@
+[project]
+name = "rad-marl"
+version = "0.1.0"
+description = "Automata-Conditioned Reinforcement Learning (AC-RL)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
