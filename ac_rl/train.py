@@ -96,10 +96,10 @@ class ActorCritic(nn.Module):
 if __name__ == "__main__":
     config = {
         "LR": 3e-4,
-        "NUM_ENVS": 16,
-        "NUM_STEPS": 128,
-        "TOTAL_TIMESTEPS": 1e6,
-        "UPDATE_EPOCHS": 10,
+        "NUM_ENVS": 64,
+        "NUM_STEPS": 1024,
+        "TOTAL_TIMESTEPS": 1e7,
+        "UPDATE_EPOCHS": 8,
         "NUM_MINIBATCHES": 8,
         "GAMMA": 0.99,
         "GAE_LAMBDA": 0.95,
