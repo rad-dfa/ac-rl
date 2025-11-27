@@ -20,6 +20,7 @@ class ActorCritic(nn.Module):
     action_dim: int
     encoder: Encoder
     n_agents: int
+    n_tokens: int
     deterministic: bool = False
     padding: str = "VALID"
 
@@ -34,20 +35,7 @@ class ActorCritic(nn.Module):
 
         obs_batch = jnp.transpose(obs_batch, (0, 2, 3, 1)) # -> (B, H, W, C)
 
-        tkn_batch = batch["tkn"]
-        if tkn_batch.ndim == 5: # (n_tokens, n_token_repeat, C, H, W)
-            tkn_batch = tkn_batch[None, ...] # -> (1, n_tokens, n_token_repeat, C, H, W)
-        elif tkn_batch.ndim != 6:
-            raise ValueError(f"Expected (n_tokens, n_token_repeat, C, H, W) or (B, n_tokens, n_token_repeat, C, H, W), got {tkn_batch.shape} for obs")
-
-        batch_size, n_tokens, n_token_repeat, *rest = tkn_batch.shape
-        tkn_batch = tkn_batch.reshape(batch_size*n_tokens*n_token_repeat, *rest)
-
-        tkn_batch = jnp.transpose(tkn_batch, (0, 2, 3, 1)) # -> (B, H, W, C)
-
-        cnn_input = jnp.concatenate([obs_batch, tkn_batch], axis=0)
-
-        cnn_output = nn.Sequential([
+        obs_feat = nn.Sequential([
             nn.Conv(16, (2, 2), padding=self.padding, kernel_init=orthogonal(np.sqrt(2))),
             nn.relu,
             nn.Conv(32, (2, 2), padding=self.padding, kernel_init=orthogonal(np.sqrt(2))),
@@ -55,11 +43,15 @@ class ActorCritic(nn.Module):
             nn.Conv(64, (2, 2), padding=self.padding, kernel_init=orthogonal(np.sqrt(2))),
             nn.relu,
             lambda x: x.reshape((x.shape[0], -1)),
-        ])(cnn_input)
+        ])(obs_batch)
 
-        obs_feat, tkn_feat = jnp.split(cnn_output, [batch_size], axis=0)
+        tkn_batch = batch["tkn"]
+        if tkn_batch.ndim == 1: # (n_symbols,)
+            tkn_batch = tkn_batch[None, ...] # -> (1, n_symbols,)
+        elif tkn_batch.ndim != 2:
+            raise ValueError(f"Expected (n_symbols,) or (B, n_symbols), got {tkn_batch.shape} for obs")
 
-        tkn_feat = tkn_feat.reshape(batch_size, -1)
+        tkn_feat = nn.Embed(self.n_tokens, 32)(tkn_batch).reshape(tkn_batch.shape[0], -1)
 
         dfa_batch = batch["dfa"]
         dfa_graph = batch2graph(dfa_batch)
@@ -225,7 +217,8 @@ if __name__ == "__main__":
     network = ActorCritic(
         action_dim=env.action_space(env.agents[0]).n,
         encoder=encoder,
-        n_agents=env.num_agents
+        n_agents=env.num_agents,
+        n_tokens=env.env.n_events # will be changed to env.n_tokens later
     )
 
     if config["DEBUG"]:
