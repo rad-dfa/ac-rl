@@ -51,11 +51,13 @@ class ActorCritic(nn.Module):
         elif tkn_batch.ndim != 2:
             raise ValueError(f"Expected (n_symbols,) or (B, n_symbols), got {tkn_batch.shape} for obs")
 
-        tkn_feat = nn.Embed(self.n_tokens, 32)(tkn_batch).reshape(tkn_batch.shape[0], -1)
+        # tkn_feat = nn.Embed(self.n_tokens, 32)(tkn_batch).reshape(tkn_batch.shape[0], -1)
+        tkn_feat = nn.Embed(self.n_tokens, 32)(tkn_batch)
 
         dfa_batch = batch["dfa"]
         dfa_graph = batch2graph(dfa_batch)
-        dfa_feat = self.encoder(dfa_graph)
+        # dfa_feat = self.encoder(dfa_graph)
+        dfa_feat = self.encoder(dfa_graph)[:, None, :]
 
         # tsk_feat = nn.Sequential([
         #     nn.Dense(256, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
@@ -71,7 +73,7 @@ class ActorCritic(nn.Module):
             out_features=32,
             kernel_init=orthogonal(np.sqrt(2)),
             bias_init=constant(0.0),
-        )(dfa_feat, tkn_feat, tkn_feat)
+        )(dfa_feat, tkn_feat, tkn_feat).reshape(tkn_batch.shape[0], -1)
 
         feat = jnp.concatenate([obs_feat, tsk_feat], axis=-1)
 
