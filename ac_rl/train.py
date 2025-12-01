@@ -83,7 +83,7 @@ class ActorCritic(nn.Module):
             nn.Dense(256, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.relu,
             nn.Dense(32, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0))
-        ])(jnp.concatenate([dfa_feat, attn], axis=-1))
+        ])(jnp.concatenate([dfa_feat, attn.reshape(attn.shape[0], -1)], axis=-1))
 
         feat = jnp.concatenate([obs_feat, tsk_feat], axis=-1)
 
