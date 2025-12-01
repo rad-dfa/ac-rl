@@ -51,19 +51,42 @@ class ActorCritic(nn.Module):
         elif tkn_batch.ndim != 2:
             raise ValueError(f"Expected (n_symbols,) or (B, n_symbols), got {tkn_batch.shape} for obs")
 
-        tkn_feat = nn.Embed(self.n_tokens, 8)(tkn_batch).reshape(tkn_batch.shape[0], -1)
+        # tkn_feat = nn.Embed(self.n_tokens, 8)(tkn_batch).reshape(tkn_batch.shape[0], -1)
+
+        # dfa_batch = batch["dfa"]
+        # dfa_graph = batch2graph(dfa_batch)
+        # dfa_feat = self.encoder(dfa_graph)
+
+        # tsk_feat = nn.Sequential([
+        #     nn.Dense(1024, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+        #     nn.relu,
+        #     nn.Dense(1024, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+        #     nn.relu,
+        #     nn.Dense(32, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0))
+        # ])(jnp.concatenate([dfa_feat, tkn_feat], axis=-1))
+
+        tkn_feat = nn.Embed(self.n_tokens, 32)(tkn_batch)
 
         dfa_batch = batch["dfa"]
         dfa_graph = batch2graph(dfa_batch)
         dfa_feat = self.encoder(dfa_graph)
 
+        # q = nn.Dense(64)(dfa_feat)
+        q = dfa_feat
+        q = q[:, None, :]  # (B, 1, 32)
+
+        attn = nn.MultiHeadDotProductAttention(
+            num_heads=1,
+            qkv_features=32,
+            out_features=64
+        )(q, tkn_feat, tkn_feat)
+
         tsk_feat = nn.Sequential([
-            nn.Dense(1024, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.relu,
-            nn.Dense(1024, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+            nn.Dense(128),
             nn.relu,
-            nn.Dense(32, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0))
-        ])(jnp.concatenate([dfa_feat, tkn_feat], axis=-1))
+            nn.Dense(32),
+        ])(attn.reshape(attn.shape[0], -1))
 
         feat = jnp.concatenate([obs_feat, tsk_feat], axis=-1)
 
