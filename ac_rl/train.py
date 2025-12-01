@@ -58,11 +58,9 @@ class ActorCritic(nn.Module):
         dfa_feat = self.encoder(dfa_graph)
 
         tsk_feat = nn.Sequential([
-            nn.Dense(256, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+            nn.Dense(1024, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.relu,
-            nn.Dense(256, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
-            nn.relu,
-            nn.Dense(256, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+            nn.Dense(1024, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.relu,
             nn.Dense(32, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0))
         ])(jnp.concatenate([dfa_feat, tkn_feat], axis=-1))
