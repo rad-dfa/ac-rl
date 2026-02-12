@@ -80,7 +80,7 @@ if __name__ == "__main__":
         "LR": 3e-4,
         "NUM_ENVS": 16,
         "NUM_STEPS": 128,
-        "TOTAL_TIMESTEPS": 1e6,
+        "TOTAL_TIMESTEPS": 5e5,
         "UPDATE_EPOCHS": 10,
         "NUM_MINIBATCHES": 8,
         "GAMMA": 0.99,
@@ -106,10 +106,16 @@ if __name__ == "__main__":
         help="Directory for saving the trained encoder (default: storage)"
     )
     parser.add_argument(
+        "--sampler",
+        type=str,
+        default="RAD",
+        help="DFA sampler type: Reach (R), ReachAvoid (RA), ReachAvoidDerived (RAD) (default: RAD)"
+    )
+    parser.add_argument(
         "--max-size",
         type=int,
-        default=10,
-        help="Number of DFA states (default: 10)"
+        default=5,
+        help="Number of DFA states (default: 5)"
     )
     parser.add_argument(
         "--n-tokens",
@@ -129,26 +135,18 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--log",
-        type=str,
-        default="log.csv",
-        help="Log csv name (default: log.csv)"
+        action="store_true",
+        help="Log to a csv file in the given save directory"
     )
     parser.add_argument(
         "--no-rad",
         action="store_true",
         help="Don't use pretrained RAD embeddings"
     )
-    parser.add_argument(
-        "--sampler",
-        type=str,
-        default="RAD",
-        help="DFA sampler type: Reach (R), ReachAvoid (RA), ReachAvoidDerived (RAD) (default: RAD)"
-    )
     args = parser.parse_args()
 
     config["DEBUG"] = args.debug
     config["WANDB"] = args.wandb
-    config["LOG"] = args.log
 
     if config["WANDB"]:
         wandb.init(
@@ -162,20 +160,26 @@ if __name__ == "__main__":
     if args.sampler in ["R", "Reach"]:
         sampler = ReachSampler(
             max_size=args.max_size,
-            n_tokens=args.n_tokens
+            n_tokens=args.n_tokens,
+            p=None,
         )
+        sampler_str = f"Reach_{args.max_size}_{args.n_tokens}"
     elif args.sampler in ["ReachAvoid", "RA"]:
         sampler = ReachAvoidSampler(
             max_size=args.max_size,
-            n_tokens=args.n_tokens
+            n_tokens=args.n_tokens,
+            p=None,
         )
+        sampler_str = f"ReachAvoid_{args.max_size}_{args.n_tokens}"
     elif args.sampler in ["ReachAvoidDerived", "RAD"]:
         sampler = RADSampler(
             max_size=args.max_size,
-            n_tokens=args.n_tokens
+            n_tokens=args.n_tokens,
+            p=None,
         )
+        sampler_str = f"RAD_{args.max_size}_{args.n_tokens}"
     else:
-        raise ValueError
+        raise ValueError(f"Unknown sampler type: {args.sampler}")
 
     token_env = TokenEnv(
         n_agents=1,
@@ -203,6 +207,8 @@ if __name__ == "__main__":
             seed=args.seed
         )
 
+    config["LOG"] = f"{args.save_dir}/log_seed_{args.seed}_{sampler_str}_{rad_str}.csv" if args.log else None
+
     network = ActorCritic(
         action_dim=env.action_space(env.agents[0]).n,
         encoder=encoder,
@@ -228,7 +234,7 @@ if __name__ == "__main__":
     os.makedirs(args.save_dir, exist_ok=True)
 
     trained_params = out["runner_state"][0].params
-    with open(f"{args.save_dir}/policy_params_{rad_str}_seed_{args.seed}.msgpack", "wb") as f:
+    with open(f"{args.save_dir}/policy_params_seed_{args.seed}_{sampler_str}_{rad_str}.msgpack", "wb") as f:
         f.write(serialization.to_bytes(trained_params))
 
     if config["WANDB"]:
