@@ -20,8 +20,10 @@ class ActorCritic(nn.Module):
     action_dim: int
     encoder: Encoder
     n_agents: int
+    n_tokens: int
     deterministic: bool = False
     padding: str = "VALID"
+    dynamic_alphabet: bool = False
 
     @nn.compact
     def __call__(self, batch):
@@ -47,7 +49,26 @@ class ActorCritic(nn.Module):
         dfa_graph = batch2graph(dfa_batch)
         dfa_feat = self.encoder(dfa_graph)
 
-        feat = jnp.concatenate([obs_feat, dfa_feat], axis=-1)
+        if self.dynamic_alphabet:
+            tkn_batch = batch["tkn"]
+            if tkn_batch.ndim == 1: # (n_symbols,)
+                tkn_batch = tkn_batch[None, ...] # -> (1, n_symbols,)
+            elif tkn_batch.ndim != 2:
+                raise ValueError(f"Expected (n_symbols,) or (B, n_symbols), got {tkn_batch.shape} for obs")
+
+            tkn_feat = nn.Embed(self.n_tokens, 8)(tkn_batch).reshape(tkn_batch.shape[0], -1)
+
+            tsk_feat = nn.Sequential([
+                nn.Dense(1024, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+                nn.relu,
+                nn.Dense(1024, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+                nn.relu,
+                nn.Dense(32, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0))
+            ])(jnp.concatenate([dfa_feat, tkn_feat], axis=-1))
+
+            feat = jnp.concatenate([obs_feat, tsk_feat], axis=-1)
+        else:
+            feat = jnp.concatenate([obs_feat, dfa_feat], axis=-1)
 
         value = nn.Sequential([
             nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
@@ -76,21 +97,6 @@ class ActorCritic(nn.Module):
 
 
 if __name__ == "__main__":
-    config = {
-        "LR": 3e-4,
-        "NUM_ENVS": 16,
-        "NUM_STEPS": 128,
-        "TOTAL_TIMESTEPS": 5e5,
-        "UPDATE_EPOCHS": 10,
-        "NUM_MINIBATCHES": 8,
-        "GAMMA": 0.99,
-        "GAE_LAMBDA": 0.95,
-        "CLIP_EPS": 0.2,
-        "ENT_COEF": 0.01,
-        "VF_COEF": 0.5,
-        "MAX_GRAD_NORM": 0.5,
-        "ANNEAL_LR": False,
-    }
 
     parser = argparse.ArgumentParser(description="Train DFA-conditioned TokenEnv policy")
     parser.add_argument(
@@ -143,7 +149,51 @@ if __name__ == "__main__":
         action="store_true",
         help="Don't use pretrained RAD embeddings"
     )
+    parser.add_argument(
+        "--binary-reward",
+        action="store_true",
+        help="Use binary reward"
+    )
+    parser.add_argument(
+        "--dynamic-alphabet",
+        action="store_true",
+        help="Use dynamic alphabet"
+    )
     args = parser.parse_args()
+
+    if args.dynamic_alphabet:
+        config = {
+            "LR": 3e-4,
+            "NUM_ENVS": 64,
+            "NUM_STEPS": 1024,
+            "TOTAL_TIMESTEPS": 1e7,
+            "UPDATE_EPOCHS": 8,
+            "NUM_MINIBATCHES": 8,
+            "GAMMA": 0.99,
+            "GAE_LAMBDA": 0.95,
+            "CLIP_EPS": 0.2,
+            "ENT_COEF": 0.01,
+            "VF_COEF": 0.5,
+            "MAX_GRAD_NORM": 0.5,
+            "ANNEAL_LR": False,
+        }
+    else:
+        config = {
+            "LR": 3e-4,
+            "NUM_ENVS": 16,
+            "NUM_STEPS": 128,
+            "TOTAL_TIMESTEPS": 1e6,
+            "UPDATE_EPOCHS": 8,
+            "NUM_MINIBATCHES": 8,
+            "GAMMA": 0.99,
+            "GAE_LAMBDA": 0.95,
+            "CLIP_EPS": 0.2,
+            "ENT_COEF": 0.01,
+            "VF_COEF": 0.5,
+            "MAX_GRAD_NORM": 0.5,
+            "ANNEAL_LR": False,
+        }
+
 
     config["DEBUG"] = args.debug
     config["WANDB"] = args.wandb
@@ -190,7 +240,9 @@ if __name__ == "__main__":
     env = DFAWrapper(
         env=token_env,
         gamma=None,
-        sampler=sampler
+        sampler=sampler,
+        binary_reward=args.binary_reward,
+        dynamic_alphabet=args.dynamic_alphabet
     )
     env = LogWrapper(env=env, config=config)
 
@@ -212,8 +264,13 @@ if __name__ == "__main__":
     network = ActorCritic(
         action_dim=env.action_space(env.agents[0]).n,
         encoder=encoder,
-        n_agents=env.num_agents
+        n_agents=env.num_agents,
+        n_tokens=env.n_tkns,
+        dynamic_alphabet=args.dynamic_alphabet
     )
+
+    for i in config:
+        print(f"{i:15}: {config[i]}")
 
     if config["DEBUG"]:
         key, subkey = jax.random.split(key)

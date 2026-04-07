@@ -5,10 +5,17 @@ description = "A JAX implementation of Automata-Conditioned Reinforcement Learni
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "dfa-gym>=0.2.3",
-    "dfax>=0.1.10",
-    "wandb==0.21.4",
+    "dfa-gym>=0.2.14",
+    "dfax>=0.1.13",
+    "wandb==0.25.1",
     "distrax==0.1.5",
     "pandas==2.3.2",
-    "rad-embeddings>=0.2.0"
+    "rad-embeddings>=0.2.3",
+    "dfa-gym",
+]
+
+[project.optional-dependencies]
+cuda = [
+    "dfa-gym[cuda]>=0.2.14",
+    "dfax[cuda]>=0.1.13",
 ]
