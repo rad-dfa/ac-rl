@@ -300,6 +300,7 @@ def make_train(config, env, network):
             if config.get("WANDB"):
                 ep_len_buffer_wandb = deque(maxlen=steps_per_update)
                 return_buffer_wandb = deque(maxlen=steps_per_update)
+                last_return_buffer_log = deque(maxlen=steps_per_update)
                 disc_return_buffer_wandb = deque(maxlen=steps_per_update)
                 start_time_wandb = time.time()
 
@@ -318,6 +319,9 @@ def make_train(config, env, network):
 
                     return_values = info["returned_episode_returns"][info["returned_episode"]]
                     return_buffer_wandb.extend(return_values)
+
+                    last_return_values = info["returned_episode_last_returns"][info["returned_episode"]]
+                    last_return_buffer_log.extend(last_return_values)
 
                     disc_return_values = info["returned_episode_disc_returns"][info["returned_episode"]]
                     disc_return_buffer_wandb.extend(disc_return_values)
@@ -357,6 +361,7 @@ def make_train(config, env, network):
             if config.get("DEBUG"):
                 ep_len_buffer_debug = deque(maxlen=steps_per_update)
                 return_buffer_debug = deque(maxlen=steps_per_update)
+                last_return_buffer_log = deque(maxlen=steps_per_update)
                 disc_return_buffer_debug = deque(maxlen=steps_per_update)
                 start_time_debug = time.time()
 
@@ -375,6 +380,9 @@ def make_train(config, env, network):
 
                     return_values = info["returned_episode_returns"][info["returned_episode"]]
                     return_buffer_debug.extend(return_values)
+
+                    last_return_values = info["returned_episode_last_returns"][info["returned_episode"]]
+                    last_return_buffer_log.extend(last_return_values)
 
                     disc_return_values = info["returned_episode_disc_returns"][info["returned_episode"]]
                     disc_return_buffer_debug.extend(disc_return_values)
