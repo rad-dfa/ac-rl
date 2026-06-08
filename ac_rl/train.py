@@ -56,7 +56,7 @@ class ActorCritic(nn.Module):
             elif tkn_batch.ndim != 2:
                 raise ValueError(f"Expected (n_symbols,) or (B, n_symbols), got {tkn_batch.shape} for obs")
 
-            tkn_feat = nn.Embed(self.n_tokens, 8)(tkn_batch).reshape(tkn_batch.shape[0], -1)
+            tkn_feat = nn.Embed(self.n_tokens, 32)(tkn_batch).reshape(tkn_batch.shape[0], -1)
 
             tsk_feat = nn.Sequential([
                 nn.Dense(1024, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
@@ -71,17 +71,17 @@ class ActorCritic(nn.Module):
             feat = jnp.concatenate([obs_feat, dfa_feat], axis=-1)
 
         value = nn.Sequential([
-            nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+            nn.Dense(256, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.relu,
-            nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+            nn.Dense(128, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.relu,
             nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))
         ])(feat)
 
         logits = nn.Sequential([
-            nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+            nn.Dense(256, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.relu,
-            nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+            nn.Dense(128, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.relu,
             nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.relu,
@@ -128,6 +128,12 @@ if __name__ == "__main__":
         type=int,
         default=10,
         help="Number tokens (default: 10)"
+    )
+    parser.add_argument(
+        "--n-symbols",
+        type=int,
+        default=10,
+        help="Number symbols (default: 10)"
     )
     parser.add_argument(
         "--wandb",
@@ -200,8 +206,8 @@ if __name__ == "__main__":
 
     if config["WANDB"]:
         wandb.init(
-            entity="beyazit-y-berkeley-eecs",
-            project="rad-rl-jax",
+            entity="rcolato29-university-of-california-berkeley",
+            project="ac-rl",
             config=config
         )
 
@@ -210,29 +216,32 @@ if __name__ == "__main__":
     if args.sampler in ["R", "Reach"]:
         sampler = ReachSampler(
             max_size=args.max_size,
-            n_tokens=args.n_tokens,
+            n_tokens=args.n_symbols,
             p=None,
         )
-        sampler_str = f"Reach_{args.max_size}_{args.n_tokens}"
+        sampler_str = f"Reach_{args.max_size}_{args.n_symbols}"
     elif args.sampler in ["ReachAvoid", "RA"]:
         sampler = ReachAvoidSampler(
             max_size=args.max_size,
-            n_tokens=args.n_tokens,
+            n_tokens=args.n_symbols,
             p=None,
         )
-        sampler_str = f"ReachAvoid_{args.max_size}_{args.n_tokens}"
+        sampler_str = f"ReachAvoid_{args.max_size}_{args.n_symbols}"
     elif args.sampler in ["ReachAvoidDerived", "RAD"]:
         sampler = RADSampler(
             max_size=args.max_size,
-            n_tokens=args.n_tokens,
+            n_tokens=args.symbols,
             p=None,
         )
-        sampler_str = f"RAD_{args.max_size}_{args.n_tokens}"
+        sampler_str = f"RAD_{args.max_size}_{args.n_symbols}"
     else:
         raise ValueError(f"Unknown sampler type: {args.sampler}")
 
     token_env = TokenEnv(
+        #grid=(10,10),
+        #n_token_repeat=1,
         n_agents=1,
+        n_tokens=args.n_tokens,
         max_steps_in_episode=100,
         fixed_map_seed=args.seed
     )
@@ -246,6 +255,8 @@ if __name__ == "__main__":
     )
     env = LogWrapper(env=env, config=config)
 
+    assert args.n_tokens >= args.n_symbols
+
     if args.no_rad:
         rad_str = "no_rad"
         encoder = EncoderModule(
@@ -253,11 +264,19 @@ if __name__ == "__main__":
         )
     else:
         rad_str = "rad"
-        encoder = Encoder(
-            max_size=env.sampler.max_size,
-            n_tokens=token_env.n_tokens,
-            seed=args.seed
-        )
+        if args.n_symbols == 10:
+            encoder = Encoder(
+                max_size=env.sampler.max_size,
+                n_tokens=args.n_symbols,
+                seed=args.seed
+            )
+        else:
+            print("Using newly trained encoder")
+            encoder = Encoder(
+                max_size=env.sampler.max_size,
+                n_tokens=args.n_symbols,
+                storage_dir=args.save_dir
+            )
 
     config["LOG"] = f"{args.save_dir}/log_seed_{args.seed}_{sampler_str}_{rad_str}.csv" if args.log else None
 
@@ -296,4 +315,3 @@ if __name__ == "__main__":
 
     if config["WANDB"]:
         wandb.finish()
-
