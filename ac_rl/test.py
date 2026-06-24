@@ -18,17 +18,7 @@ from dfax import data2sampler
 
 if __name__ == "__main__":
 
-    def str2bool(v):
-        if isinstance(v, bool):
-            return v
-        if v.lower() in ('yes', 'true', 't', 'y', '1'):
-            return True
-        elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-            return False
-        else:
-            raise argparse.ArgumentTypeError('Boolean value expected.')
-
-    parser = argparse.ArgumentParser(description="Train TokenEnv policy")
+    parser = argparse.ArgumentParser(description="Test TokenEnv policy")
     parser.add_argument(
         "--seeds",
         type=int,
@@ -47,6 +37,12 @@ if __name__ == "__main__":
         type=int,
         default=10,
         help="Number tokens (default: 10)"
+    )
+    parser.add_argument(
+        "--n-symbols",
+        type=int,
+        default=10,
+        help="Number symbols (default: 10)"
     )
     parser.add_argument(
         "--sampler",
@@ -82,30 +78,46 @@ if __name__ == "__main__":
         action="store_true",
         help="Output results on a comma seperated line"
     )
+    parser.add_argument(
+        "--ood",
+        action="store_true",
+        help="Sample out-of-distribution DFAs -- doubles max DFA size and max episode length"
+    )
+    parser.add_argument(
+        "--binary-reward",
+        action="store_true",
+        help="Use binary reward"
+    )
+    parser.add_argument(
+        "--dynamic-alphabet",
+        action="store_true",
+        help="Use dynamic alphabet"
+    )
     args = parser.parse_args()
 
     batch_size = args.batch_size
     if batch_size == -1:
         batch_size = args.n
 
-    if args.sampler in ["R", "Reach"]:
+    k = 1
+    if args.ood:
+        k = 2
+
+    if args.sampler in ["Reach", "R"]:
         sampler = ReachSampler(
-            max_size=args.max_size,
-            n_tokens=args.n_tokens
+            max_size=args.max_size*k,
+            n_tokens=args.n_symbols
         )
-        sampler_str = f"Reach_{args.max_size}_{args.n_tokens}"
     elif args.sampler in ["ReachAvoid", "RA"]:
         sampler = ReachAvoidSampler(
-            max_size=args.max_size,
-            n_tokens=args.n_tokens
+            max_size=args.max_size*k,
+            n_tokens=args.n_symbols
         )
-        sampler_str = f"ReachAvoid_{args.max_size}_{args.n_tokens}"
     elif args.sampler in ["ReachAvoidDerived", "RAD"]:
         sampler = RADSampler(
-            max_size=args.max_size,
-            n_tokens=args.n_tokens
+            max_size=args.max_size*k,
+            n_tokens=args.n_symbols
         )
-        sampler_str = f"RAD_{args.max_size}_{args.n_tokens}"
     else:
         raise ValueError(f"Unknown sampler type: {args.sampler}")
 
@@ -121,15 +133,21 @@ if __name__ == "__main__":
 
         token_env = TokenEnv(
             n_agents=1,
-            max_steps_in_episode=100,
+            n_tokens=args.n_tokens,
+            max_steps_in_episode=100*k,
             fixed_map_seed=args.seeds[i]
         )
 
         env = DFAWrapper(
             env=token_env,
             gamma=None,
-            sampler=sampler
+            sampler=sampler,
+            binary_reward=args.binary_reward,
+            dynamic_alphabet=args.dynamic_alphabet
         )
+
+        assert args.n_tokens >= args.n_symbols
+        events_str = f"n_events_{args.n_tokens}"
 
         if args.no_rad:
             rad_str = "no_rad"
@@ -138,16 +156,26 @@ if __name__ == "__main__":
             )
         else:
             rad_str = "rad"
-            encoder = Encoder(
-                max_size=env.sampler.max_size,
-                n_tokens=token_env.n_tokens,
-                seed=args.seeds[i]
-            )
+            if args.n_symbols == 10:
+                encoder = Encoder(
+                    max_size=env.sampler.max_size,
+                    n_tokens=args.n_symbols,
+                    seed=args.seeds[i]
+                )
+            else:
+                print("Using newly trained encoder")
+                encoder = Encoder(
+                    max_size=env.sampler.max_size,
+                    n_tokens=args.n_symbols,
+                    storage_dir=args.model_dir
+                )
 
         network = ActorCritic(
             action_dim=env.action_space(env.agents[0]).n,
             encoder=encoder,
-            n_agents=env.num_agents
+            n_agents=env.num_agents,
+            n_tokens=env.n_tkns,
+            dynamic_alphabet=args.dynamic_alphabet
         )
 
         key, subkey = jax.random.split(key)
@@ -155,7 +183,8 @@ if __name__ == "__main__":
         key, subkey = jax.random.split(key)
         params = network.init(subkey, init_x)
 
-        with open(f"{args.model_dir}/policy_params_seed_{args.seeds[i]}_{sampler_str}_{rad_str}.msgpack", "rb") as f:
+        policy_sampler_str = "RAD_5_5"
+        with open(f"{args.model_dir}/policy_params_seed_{args.seeds[i]}_{policy_sampler_str}_{rad_str}_{events_str}.msgpack", "rb") as f:
             params = serialization.from_bytes(params, f.read())
 
         @partial(jax.jit, static_argnums=(0, 1))
@@ -257,7 +286,7 @@ if __name__ == "__main__":
     avg_disc_return_std = jnp.std(avg_disc_return_list)
 
     if args.csv:
-        print(f"{rad_str}, {train_dataset}, {test_dataset}, {success_rate_mean} +/- {success_rate_std}, {avg_len_mean} +/- {avg_len_std}, {avg_reward_mean} +/- {avg_reward_std}, {avg_disc_return_mean} +/- {avg_disc_return_std}")
+        print(f"{rad_str}, {args.n_tokens}, {args.sampler}, {args.ood}, {success_rate_mean} +/- {success_rate_std}, {avg_len_mean} +/- {avg_len_std}, {avg_reward_mean} +/- {avg_reward_std}, {avg_disc_return_mean} +/- {avg_disc_return_std}")
     else:
         print(f"Test completed for {n_seeds} seeds.")
         print(f"Success rate: {success_rate_mean:.2f} +/- {success_rate_std:.2f}")

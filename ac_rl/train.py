@@ -230,7 +230,7 @@ if __name__ == "__main__":
     elif args.sampler in ["ReachAvoidDerived", "RAD"]:
         sampler = RADSampler(
             max_size=args.max_size,
-            n_tokens=args.symbols,
+            n_tokens=args.n_symbols,
             p=None,
         )
         sampler_str = f"RAD_{args.max_size}_{args.n_symbols}"
@@ -238,8 +238,6 @@ if __name__ == "__main__":
         raise ValueError(f"Unknown sampler type: {args.sampler}")
 
     token_env = TokenEnv(
-        #grid=(10,10),
-        #n_token_repeat=1,
         n_agents=1,
         n_tokens=args.n_tokens,
         max_steps_in_episode=100,
@@ -256,6 +254,7 @@ if __name__ == "__main__":
     env = LogWrapper(env=env, config=config)
 
     assert args.n_tokens >= args.n_symbols
+    events_str = f"n_events_{args.n_tokens}"
 
     if args.no_rad:
         rad_str = "no_rad"
@@ -278,7 +277,7 @@ if __name__ == "__main__":
                 storage_dir=args.save_dir
             )
 
-    config["LOG"] = f"{args.save_dir}/log_seed_{args.seed}_{sampler_str}_{rad_str}.csv" if args.log else None
+    config["LOG"] = f"{args.save_dir}/log_seed_{args.seed}_{sampler_str}_{rad_str}_{events_str}.csv" if args.log else None
 
     network = ActorCritic(
         action_dim=env.action_space(env.agents[0]).n,
@@ -310,7 +309,7 @@ if __name__ == "__main__":
     os.makedirs(args.save_dir, exist_ok=True)
 
     trained_params = out["runner_state"][0].params
-    with open(f"{args.save_dir}/policy_params_seed_{args.seed}_{sampler_str}_{rad_str}.msgpack", "wb") as f:
+    with open(f"{args.save_dir}/policy_params_seed_{args.seed}_{sampler_str}_{rad_str}_{events_str}.msgpack", "wb") as f:
         f.write(serialization.to_bytes(trained_params))
 
     if config["WANDB"]:

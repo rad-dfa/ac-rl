@@ -1,0 +1,30 @@
+% Requires: \usepackage{array, graphicx}
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{|c||c|c|c||c|c|c|}
+\hline
+\multicolumn{7}{|c|}{\textbf{Success Probability}} \\
+\hline
+\textbf{Policy} & \textbf{Reach} & \textbf{ReachAvoid} & \textbf{RAD} & \begin{tabular}[c]{@{}c@{}}\textbf{Reach} \\ \textbf{(OOD)}\end{tabular} & \begin{tabular}[c]{@{}c@{}}\textbf{ReachAvoid} \\ \textbf{(OOD)}\end{tabular} & \begin{tabular}[c]{@{}c@{}}\textbf{RAD} \\ \textbf{(OOD)}\end{tabular} \\
+\hline
+\begin{tabular}[c]{@{}c@{}}RAD Embd; \\ 5 Events\end{tabular} & 1.000 $\pm$ 0.000 & 0.989 $\pm$ 0.003 & 0.997 $\pm$ 0.003 & 0.233 $\pm$ 0.053 & 0.137 $\pm$ 0.026 & 0.542 $\pm$ 0.069 \\
+\hline
+\begin{tabular}[c]{@{}c@{}}RAD Embd; \\ 10 Events\end{tabular} & 0.998 $\pm$ 0.001 & 0.939 $\pm$ 0.009 & 0.985 $\pm$ 0.005 & 0.351 $\pm$ 0.044 & 0.157 $\pm$ 0.005 & 0.624 $\pm$ 0.015 \\
+\hline
+\begin{tabular}[c]{@{}c@{}}RAD Embd; \\ 20 Events\end{tabular} & 0.982 $\pm$ 0.013 & 0.730 $\pm$ 0.059 & 0.924 $\pm$ 0.026 & 0.501 $\pm$ 0.103 & 0.142 $\pm$ 0.015 & 0.648 $\pm$ 0.037 \\
+\hline
+\begin{tabular}[c]{@{}c@{}}No RAD Embd; \\ 5 Events\end{tabular} & 1.000 $\pm$ 0.000 & 0.998 $\pm$ 0.001 & 1.000 $\pm$ 0.001 & 0.991 $\pm$ 0.008 & 0.897 $\pm$ 0.094 & 0.998 $\pm$ 0.001 \\
+\hline
+\begin{tabular}[c]{@{}c@{}}No RAD Embd; \\ 10 Events\end{tabular} & 1.000 $\pm$ 0.000 & 0.955 $\pm$ 0.054 & 0.990 $\pm$ 0.012 & 0.994 $\pm$ 0.007 & 0.787 $\pm$ 0.170 & 0.983 $\pm$ 0.018 \\
+\hline
+\begin{tabular}[c]{@{}c@{}}No RAD Embd; \\ 20 Events\end{tabular} & 0.998 $\pm$ 0.003 & 0.757 $\pm$ 0.135 & 0.944 $\pm$ 0.038 & 0.975 $\pm$ 0.037 & 0.455 $\pm$ 0.131 & 0.929 $\pm$ 0.042 \\
+\hline
+\end{tabular}%
+}
+\caption{Success probability on \texttt{TokenEnv}. Results are averaged over 5 seeds, each run for 1{,}000 episodes.}
+\label{table:tokenenv_probs}
+\end{table*}
