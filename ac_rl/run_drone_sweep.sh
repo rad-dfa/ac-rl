@@ -16,7 +16,7 @@ echo "Seeds: ${SEEDS[*]}"
 for seed in "${SEEDS[@]}"; do
     for rad_flag in "" "--no-rad"; do
         echo "=== seed=${seed} ${rad_flag:-rad} ==="
-        python train_drone_policy.py \
+        uv run train_drone_policy.py \
             --seed "${seed}" \
             --sampler RA \
             --binary-reward \
