@@ -25,3 +25,4 @@ cuda = [
 # published to PyPI as of dfa-gym 0.2.18) -- point at the local checkout
 # until a release with DroneEnv ships, then revert to the PyPI pin above.
 dfa-gym = { path = "../dfa-gym", editable = true }
+rad-embeddings = { path = "../rad-embeddings", editable = true }

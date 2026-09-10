@@ -12,23 +12,9 @@ from dfax import batch2graph
 import flax.serialization as serialization
 from flax.traverse_util import flatten_dict
 from rad_embeddings import Encoder, EncoderModule
-from dfa_gym import DroneEnv as _DroneEnv, DFAWrapper
+from dfa_gym import DroneEnv, DFAWrapper
 from flax.linen.initializers import constant, orthogonal
 from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
-
-
-class DroneEnv(_DroneEnv):
-    """DroneEnv, patched with the `n_tokens` attribute `DFAWrapper` requires.
-
-    Unlike TokenEnv (whose alphabet size is a constructor argument),
-    DroneEnv's `label_f` labels positions against a fixed set of regions
-    (see `label_regions()`) -- the alphabet size is a property of that
-    geometry, not something dfa-gym's drone_env branch exposes directly.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.n_tokens = max(token for token, _, _ in self.label_regions()) + 1
 
 
 class ActorCritic(nn.Module):
@@ -149,13 +135,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no-rad",
         action="store_true",
-        help=(
-            "Don't use pretrained RAD embeddings. NOTE: rad-embeddings only "
-            "ships bundled checkpoints for n_tokens=10; DroneEnv's alphabet is "
-            "fixed at 5 tokens (see DroneEnv.label_regions()), so omitting this "
-            "flag will fail with FileNotFoundError unless you first train a "
-            "matching encoder via rad_embeddings.EncoderModule.train(n_tokens=5, ...)."
-        )
+        help="Don't use pretrained RAD embeddings."
     )
     parser.add_argument(
         "--binary-reward",
@@ -178,18 +158,18 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max-steps-in-episode",
         type=int,
-        default=200,
-        help="Episode horizon (default: 200)"
+        default=500,
+        help="Episode horizon (default: 500)"
     )
     args = parser.parse_args()
 
     config = {
         "LR": 3e-4,
         "NUM_ENVS": 16,
-        "NUM_STEPS": 128,
-        "TOTAL_TIMESTEPS": 1e6,
-        "UPDATE_EPOCHS": 8,
-        "NUM_MINIBATCHES": 8,
+        "NUM_STEPS": 512,
+        "TOTAL_TIMESTEPS": 1e7,
+        "UPDATE_EPOCHS": 4,
+        "NUM_MINIBATCHES": 16,
         "GAMMA": 0.99,
         "GAE_LAMBDA": 0.95,
         "CLIP_EPS": 0.2,
@@ -209,7 +189,7 @@ if __name__ == "__main__":
     if config["WANDB"]:
         wandb.init(
             entity="beyazit-y-berkeley-eecs",
-            project="rad-rl-jax",
+            project="ac-rl-drone-policy",
             config=config
         )
 
