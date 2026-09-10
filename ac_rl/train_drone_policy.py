@@ -254,7 +254,15 @@ if __name__ == "__main__":
             seed=args.seed
         )
 
-    config["LOG"] = f"{args.save_dir}/log_drone_seed_{args.seed}_{sampler_str}_{rad_str}.csv" if args.log else None
+    reward_str = "binary" if args.binary_reward else "shaped"
+    action_mode_str = "disp" if args.use_displacement_action else "vel"
+    run_tag = (
+        f"seed_{args.seed}_{sampler_str}_{rad_str}_{reward_str}"
+        f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
+        f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
+    )
+
+    config["LOG"] = f"{args.save_dir}/log_drone_{run_tag}.csv" if args.log else None
 
     network = ActorCritic(
         action_dim=env.action_space(env.agents[0]).shape[0],
@@ -285,7 +293,7 @@ if __name__ == "__main__":
     os.makedirs(args.save_dir, exist_ok=True)
 
     trained_params = out["runner_state"][0].params
-    with open(f"{args.save_dir}/policy_params_drone_seed_{args.seed}_{sampler_str}_{rad_str}.msgpack", "wb") as f:
+    with open(f"{args.save_dir}/policy_params_drone_{run_tag}.msgpack", "wb") as f:
         f.write(serialization.to_bytes(trained_params))
 
     if config["WANDB"]:
