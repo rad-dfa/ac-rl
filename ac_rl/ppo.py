@@ -86,7 +86,11 @@ def make_train(config, env, network):
                 action = pi.sample(seed=_rng)
                 log_prob = pi.log_prob(action)
 
-                _action = action.reshape((-1, config["NUM_ENVS"]))
+                # action.shape[1:] is the per-agent action event shape: () for a
+                # discrete/Categorical policy, (action_dim,) for a continuous
+                # Box/MultivariateNormalDiag one -- reshape must preserve it rather
+                # than flattening it away.
+                _action = action.reshape((config["NUM_AGENTS"], config["NUM_ENVS"]) + action.shape[1:])
                 env_act = {agent: _action[i] for i, agent in enumerate(env.agents)}
 
                 # STEP ENV
