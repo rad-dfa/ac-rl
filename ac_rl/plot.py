@@ -1,25 +1,41 @@
-import sys
 import glob
+import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import numpy as np
 
-exp_name = sys.argv[1]
+parser = argparse.ArgumentParser(description="Plot AC-RL training curves from saved CSV logs.")
+parser.add_argument("exp_name", nargs="?", help="Experiment name prefix (storage/{exp_name}_reach/, storage/{exp_name}_reach_avoid/)")
+parser.add_argument("--drone-policy", action="store_true", help="Plot drone-policy RAD vs No-RAD sweep results from storage/log_drone_*.csv")
+args = parser.parse_args()
 
-# Define tasks and corresponding directories
-tasks = {
-    "Reach": f"storage/{exp_name}_reach/log_*.csv",
-    "ReachAvoid": f"storage/{exp_name}_reach_avoid/log_*.csv",
-}
+if args.drone_policy:
+    drone_csvs = glob.glob("storage/log_drone_*.csv")
+    groups = {
+        "RAD": [f for f in drone_csvs if "_no_rad_" not in f],
+        "No RAD": [f for f in drone_csvs if "_no_rad_" in f],
+    }
+    colors = {"RAD": "tab:blue", "No RAD": "tab:orange"}
+    plot_name = "drone_policy"
+    plot_title = "Drone Policy: RAD vs No-RAD"
+else:
+    if not args.exp_name:
+        parser.error("exp_name is required unless --drone-policy is given")
+    groups = {
+        "Reach": glob.glob(f"storage/{args.exp_name}_reach/log_*.csv"),
+        "ReachAvoid": glob.glob(f"storage/{args.exp_name}_reach_avoid/log_*.csv"),
+    }
+    colors = {"Reach": "tab:blue", "ReachAvoid": "tab:orange"}
+    plot_name = args.exp_name
+    plot_title = args.exp_name
 
-# Dictionary to hold mean/std for each task
+# Dictionary to hold mean/std for each group
 results = {}
 
-for task, pattern in tasks.items():
-    log_files = glob.glob(pattern)
+for label, log_files in groups.items():
     if not log_files:
-        print(f"Warning: No files found for task={task} with pattern {pattern}")
+        print(f"Warning: No files found for {label}")
         continue
 
     dfs = [pd.read_csv(f) for f in log_files]
@@ -47,7 +63,7 @@ for task, pattern in tasks.items():
         data_mean[col] = np.nanmean(values, axis=1)
         data_std[col] = np.nanstd(values, axis=1)
 
-    results[task] = {
+    results[label] = {
         "timesteps": timesteps,
         "mean": data_mean,
         "std": data_std,
@@ -55,33 +71,30 @@ for task, pattern in tasks.items():
     }
 
 # Create folder to save plots
-os.makedirs(f"storage/plots/{exp_name}", exist_ok=True)
-
-# Consistent colors for tasks
-colors = {"Reach": "tab:blue", "ReachAvoid": "tab:orange"}
+os.makedirs(f"storage/plots/{plot_name}", exist_ok=True)
 
 # Plot
-for col in results[list(tasks.keys())[0]]["columns"]:
+for col in next(iter(results.values()))["columns"]:
     plt.figure(figsize=(8, 5))
-    for task in tasks.keys():
-        if task not in results:
+    for label in groups.keys():
+        if label not in results:
             continue
-        timesteps = results[task]["timesteps"]
-        mean = results[task]["mean"][col]
-        std = results[task]["std"][col]
+        timesteps = results[label]["timesteps"]
+        mean = results[label]["mean"][col]
+        std = results[label]["std"][col]
 
-        plt.plot(timesteps, mean, label=task, color=colors[task])
-        plt.fill_between(timesteps, mean - std, mean + std, alpha=0.2, color=colors[task])
+        plt.plot(timesteps, mean, label=label, color=colors[label])
+        plt.fill_between(timesteps, mean - std, mean + std, alpha=0.2, color=colors[label])
 
     plt.xlabel("timestep")
     plt.ylabel(col)
-    plt.title(f"{exp_name} -- {col}")
+    plt.title(f"{plot_title} -- {col}")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
 
-    pdf_path = os.path.join("storage", "plots", exp_name, f"{col}.pdf")
+    pdf_path = os.path.join("storage", "plots", plot_name, f"{col}.pdf")
     plt.savefig(pdf_path)
     plt.close()
 
-print(f"✅ Plots saved in storage/plots/{exp_name}")
+print(f"✅ Plots saved in storage/plots/{plot_name}")
