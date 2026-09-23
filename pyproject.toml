@@ -12,6 +12,8 @@ dependencies = [
     "pandas==2.3.2",
     "rad-embeddings>=0.2.3",
     "dfa-gym",
+    "onnx>=1.23.0",
+    "onnxruntime<1.21",
 ]
 
 [project.optional-dependencies]
