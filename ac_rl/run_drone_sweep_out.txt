@@ -169,3 +169,344 @@ ANNEAL_LR      : False
 DEBUG          : False
 WANDB          : False
 LOG            : storage/log_drone_seed_25715_ReachAvoid_5_5_no_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+Seeds: 14351 26862 6525 28249 6647
+=== seed=14351 sampler=R rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_14351_Reach_5_5_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=14351 sampler=R --no-rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_14351_Reach_5_5_no_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=14351 sampler=RAD rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_14351_RAD_5_5_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=14351 sampler=RAD --no-rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_14351_RAD_5_5_no_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=26862 sampler=R rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_26862_Reach_5_5_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=26862 sampler=R --no-rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_26862_Reach_5_5_no_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=26862 sampler=RAD rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_26862_RAD_5_5_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=26862 sampler=RAD --no-rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_26862_RAD_5_5_no_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=6525 sampler=R rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_6525_Reach_5_5_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=6525 sampler=R --no-rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_6525_Reach_5_5_no_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=6525 sampler=RAD rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_6525_RAD_5_5_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=6525 sampler=RAD --no-rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_6525_RAD_5_5_no_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=28249 sampler=R rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_28249_Reach_5_5_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=28249 sampler=R --no-rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_28249_Reach_5_5_no_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=28249 sampler=RAD rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_28249_RAD_5_5_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=28249 sampler=RAD --no-rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_28249_RAD_5_5_no_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=6647 sampler=R rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_6647_Reach_5_5_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=6647 sampler=R --no-rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_6647_Reach_5_5_no_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=6647 sampler=RAD rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_6647_RAD_5_5_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
+=== seed=6647 sampler=RAD --no-rad ===
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+LOG            : storage/log_drone_seed_6647_RAD_5_5_no_rad_binary_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500.csv
