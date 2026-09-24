@@ -251,7 +251,8 @@ if __name__ == "__main__":
         encoder = Encoder(
             max_size=env.sampler.max_size,
             n_tokens=drone_env.n_tokens,
-            seed=args.seed
+            seed=args.seed,
+            binary_reward=args.binary_reward
         )
 
     reward_str = "binary" if args.binary_reward else "shaped"
