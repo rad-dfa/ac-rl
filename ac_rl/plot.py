@@ -4,10 +4,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import numpy as np
+import re
+from collections import defaultdict
 
 parser = argparse.ArgumentParser(description="Plot AC-RL training curves from saved CSV logs.")
 parser.add_argument("exp_name", nargs="?", help="Experiment name prefix (storage/{exp_name}_reach/, storage/{exp_name}_reach_avoid/)")
-parser.add_argument("--drone-policy", action="store_true", help="Plot drone-policy RAD vs No-RAD sweep results from storage/log_drone_*.csv, one folder per sampler")
+parser.add_argument("--drone-policy", action="store_true", help="Plot drone-policy RAD vs No-RAD sweep results from storage/log_drone_*.csv, one folder per unique experiment config")
 args = parser.parse_args()
 
 
@@ -91,18 +93,23 @@ def plot(results, groups, colors, out_dir, title):
 if args.drone_policy:
     drone_csvs = glob.glob("storage/log_drone_*.csv")
     colors = {"RAD": "tab:blue", "No RAD": "tab:orange"}
-    # Output folder name -> sampler name as it appears in the log file names.
-    # Matched case-sensitively so the "RAD" sampler is not confused with the "rad"/"no_rad" embedding tag.
-    samplers = {"R": "Reach", "RA": "ReachAvoid", "RAD": "RAD"}
-    for short, full in samplers.items():
-        files = [f for f in drone_csvs if f"_{full}_" in os.path.basename(f)]
-        groups = {
-            "RAD": [f for f in files if "_no_rad_" not in f],
-            "No RAD": [f for f in files if "_no_rad_" in f],
-        }
+    # An experiment is the log file name minus the seed and the rad/no_rad tag,
+    # e.g. "ReachAvoid_5_5_shaped_x-1.0_1.0_..._steps500".
+    # The rad tag is matched case-sensitively so the "RAD" sampler is not confused with it.
+    pattern = re.compile(r"^log_drone_seed_(\d+)_(.+?)_(no_rad|rad)_(.+)\.csv$")
+    experiments = defaultdict(lambda: {"RAD": [], "No RAD": []})
+    for f in drone_csvs:
+        m = pattern.match(os.path.basename(f))
+        if m is None:
+            print(f"Warning: Skipping unrecognized log file {f}")
+            continue
+        _, prefix, rad_tag, suffix = m.groups()
+        experiments[f"{prefix}_{suffix}"]["No RAD" if rad_tag == "no_rad" else "RAD"].append(f)
+    for exp, groups in sorted(experiments.items()):
+        print(f"{exp}: {len(groups['RAD'])} RAD seeds, {len(groups['No RAD'])} No-RAD seeds")
         plot(aggregate(groups), groups, colors,
-             out_dir=os.path.join("storage", "plots", "drone_policy", short),
-             title=f"Drone Policy ({full}): RAD vs No-RAD")
+             out_dir=os.path.join("storage", "plots", "drone_policy", exp),
+             title=f"Drone Policy ({exp}): RAD vs No-RAD")
 else:
     if not args.exp_name:
         parser.error("exp_name is required unless --drone-policy is given")
