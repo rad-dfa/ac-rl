@@ -2,7 +2,6 @@ import os
 import jax
 import argparse
 import jax.numpy as jnp
-from functools import partial
 from ppo import batchify
 from train_drone_policy import ActorCritic
 import flax.serialization as serialization
@@ -14,9 +13,8 @@ from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
 GAMMA = 0.99
 
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(description="Test DFA-conditioned DroneEnv policy")
+def make_parser(description, n_default=100, gif_flag=True):
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
         "--model-path",
         type=str,
@@ -79,8 +77,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n",
         type=int,
-        default=100,
-        help="Number of test episodes (default: 100)"
+        default=n_default,
+        help=f"Number of test episodes (default: {n_default})"
     )
     parser.add_argument(
         "--batch-size",
@@ -93,22 +91,21 @@ if __name__ == "__main__":
         action="store_true",
         help="Act with the policy mean instead of sampling"
     )
-    parser.add_argument(
-        "--generate-gif",
-        action="store_true",
-        help="Generate a gif of one test episode"
-    )
+    if gif_flag:
+        parser.add_argument(
+            "--generate-gif",
+            action="store_true",
+            help="Generate a gif of one test episode"
+        )
     select_group = parser.add_mutually_exclusive_group()
     select_group.add_argument("--random", action="store_true", help="Gif a uniformly random episode (default)")
     select_group.add_argument("--max", action="store_true", help="Gif the episode with max discounted return")
     select_group.add_argument("--min", action="store_true", help="Gif the episode with min discounted return")
-    args = parser.parse_args()
+    return parser
 
-    if (args.random or args.max or args.min) and not args.generate_gif:
-        parser.error("--random/--max/--min can only be given together with --generate-gif")
 
-    batch_size = args.n if args.batch_size == -1 else args.batch_size
-
+def setup(args):
+    """Builds the env and network exactly as train_drone_policy.py does and loads the params."""
     drone_env = DroneEnv(
         n_agents=1,
         x_low=args.x_low,
@@ -196,9 +193,27 @@ if __name__ == "__main__":
     with open(args.model_path, "rb") as f:
         params = serialization.from_bytes(params, f.read())
 
+    return drone_env, env, network, params, run_tag, key
+
+
+def run_episodes(env, network, params, keys, deterministic, max_steps, batch_size, dfa=None):
+    """Rolls out one episode per key (vmapped in chunks of batch_size).
+
+    If `dfa` (a dfax.DFAx) is given, every episode is conditioned on it instead of a
+    DFA drawn from env's sampler. Returns (successes, fails, ep_lens, ep_rewards,
+    ep_disc_returns, trajs, init_dfas), with trajs the stacked DroneEnvStates
+    (initial state included) of shape (n, max_steps + 1, ...).
+    """
+
     def run_episode(params, key):
         key, subkey = jax.random.split(key)
         obs, state = env.reset(subkey)
+        if dfa is not None:
+            state = state.replace(
+                dfas={agent: dfa for agent in env.agents},
+                init_dfas={agent: dfa for agent in env.agents},
+            )
+            obs = env.get_obs(state=state)
 
         carry = {
             "key": key,
@@ -215,7 +230,7 @@ if __name__ == "__main__":
         def step_fn(carry, _):
             key, act_key, step_key = jax.random.split(carry["key"], 3)
             out, _ = network.apply(params, batchify(carry["obs"], env.agents))
-            actions = out if args.deterministic else out.sample(seed=act_key)
+            actions = out if deterministic else out.sample(seed=act_key)
             actions = {agent: actions[i] for i, agent in enumerate(env.agents)}
             # step_env rather than step: step auto-resets on done, which would clobber the trace.
             obs, state, rewards, dones, _ = env.step_env(step_key, carry["state"], actions)
@@ -243,7 +258,7 @@ if __name__ == "__main__":
             carry = jax.tree_util.tree_map(lambda old, nw: jnp.where(carry["done"], old, nw), carry, new)
             return carry, carry["state"].env_state
 
-        final_carry, traj = jax.lax.scan(step_fn, carry, None, length=args.max_steps_in_episode)
+        final_carry, traj = jax.lax.scan(step_fn, carry, None, length=max_steps)
         traj = jax.tree_util.tree_map(
             lambda x0, xs: jnp.concatenate([x0[None], xs], axis=0), state.env_state, traj
         )
@@ -257,57 +272,82 @@ if __name__ == "__main__":
             state.init_dfas[env.agents[0]],
         )
 
-    @jax.jit
-    def run_episodes(params, keys):
-        return jax.vmap(run_episode, (None, 0))(params, keys)
+    run_batch = jax.jit(jax.vmap(run_episode, (None, 0)))
 
-    def batched_vmap_run(params, keys, batch_size):
-        n = keys.shape[0]
-        results = []
-        for start in range(0, n, batch_size):
-            end = min(start + batch_size, n)
-            results.append(run_episodes(params, keys[start:end]))
-        return jax.tree_util.tree_map(lambda *xs: jnp.concatenate(xs, axis=0), *results)
+    n = keys.shape[0]
+    results = []
+    for start in range(0, n, batch_size):
+        end = min(start + batch_size, n)
+        results.append(run_batch(params, keys[start:end]))
+    return jax.tree_util.tree_map(lambda *xs: jnp.concatenate(xs, axis=0), *results)
 
-    key, subkey = jax.random.split(key)
-    keys = jax.random.split(subkey, args.n)
-    successes, fails, ep_lens, ep_rewards, ep_disc_returns, trajs, init_dfas = batched_vmap_run(params, keys, batch_size)
 
-    print(f"Test completed for {args.n} episodes.")
+def print_stats(results):
+    successes, fails, ep_lens, ep_rewards, ep_disc_returns, _, _ = results
+    timeouts = ~(successes | fails)
+    print(f"Test completed for {successes.shape[0]} episodes.")
     print(f"Success rate: {jnp.mean(successes):.2f} +/- {jnp.std(successes):.2f}")
     print(f"Fail rate: {jnp.mean(fails):.2f} +/- {jnp.std(fails):.2f}")
-    timeouts = ~(successes | fails)
     print(f"Timeout rate: {jnp.mean(timeouts):.2f} +/- {jnp.std(timeouts):.2f}")
     print(f"Average episode length: {jnp.mean(ep_lens):.2f} +/- {jnp.std(ep_lens):.2f}")
     print(f"Average episode reward: {jnp.mean(ep_rewards):.2f} +/- {jnp.std(ep_rewards):.2f}")
     print(f"Average episode discounted return: {jnp.mean(ep_disc_returns):.2f} +/- {jnp.std(ep_disc_returns):.2f}")
 
+
+def save_gif(args, drone_env, results, key, gif_name):
+    """Animates the episode picked by --random/--max/--min (default --random) to
+    {save_dir}/gifs/{gif_name}_{select}[_det].gif."""
+    successes, _, ep_lens, _, ep_disc_returns, trajs, init_dfas = results
+    n = ep_lens.shape[0]
+
+    if args.max:
+        select_str = "max"
+        idx = int(jnp.argmax(ep_disc_returns))
+    elif args.min:
+        select_str = "min"
+        idx = int(jnp.argmin(ep_disc_returns))
+    else:
+        select_str = "random"
+        idx = int(jax.random.randint(key, (), 0, n))
+
+    ep_len = int(ep_lens[idx])
+    trace = [
+        jax.tree_util.tree_map(lambda x: x[idx, t], trajs)
+        for t in range(ep_len + 1)
+    ]
+    dfa = jax.tree_util.tree_map(lambda x: x[idx], init_dfas)
+
+    det_str = "_det" if args.deterministic else ""
+    gif_dir = os.path.join(args.save_dir, "gifs")
+    os.makedirs(gif_dir, exist_ok=True)
+    gif_path = os.path.join(gif_dir, f"{gif_name}_{select_str}{det_str}.gif")
+
+    animate_drone_trace(drone_env, trace, save_path=gif_path, dfa=dfa)
+    print(
+        f"Saved gif of episode {idx} ({select_str}; disc return {float(ep_disc_returns[idx]):.3f}, "
+        f"success {bool(successes[idx])}, length {ep_len}) to {gif_path}"
+    )
+
+
+if __name__ == "__main__":
+
+    parser = make_parser("Test DFA-conditioned DroneEnv policy")
+    args = parser.parse_args()
+
+    if (args.random or args.max or args.min) and not args.generate_gif:
+        parser.error("--random/--max/--min can only be given together with --generate-gif")
+
+    batch_size = args.n if args.batch_size == -1 else args.batch_size
+
+    drone_env, env, network, params, run_tag, key = setup(args)
+
+    key, subkey = jax.random.split(key)
+    keys = jax.random.split(subkey, args.n)
+    results = run_episodes(
+        env, network, params, keys, args.deterministic, args.max_steps_in_episode, batch_size
+    )
+    print_stats(results)
+
     if args.generate_gif:
-        if args.max:
-            select_str = "max"
-            idx = int(jnp.argmax(ep_disc_returns))
-        elif args.min:
-            select_str = "min"
-            idx = int(jnp.argmin(ep_disc_returns))
-        else:
-            select_str = "random"
-            key, subkey = jax.random.split(key)
-            idx = int(jax.random.randint(subkey, (), 0, args.n))
-
-        ep_len = int(ep_lens[idx])
-        trace = [
-            jax.tree_util.tree_map(lambda x: x[idx, t], trajs)
-            for t in range(ep_len + 1)
-        ]
-
-        det_str = "_det" if args.deterministic else ""
-        gif_dir = os.path.join(args.save_dir, "gifs")
-        os.makedirs(gif_dir, exist_ok=True)
-        gif_path = os.path.join(gif_dir, f"drone_{run_tag}_n{args.n}_{select_str}{det_str}.gif")
-
-        dfa = jax.tree_util.tree_map(lambda x: x[idx], init_dfas)
-        animate_drone_trace(drone_env, trace, save_path=gif_path, dfa=dfa)
-        print(
-            f"Saved gif of episode {idx} ({select_str}; disc return {float(ep_disc_returns[idx]):.3f}, "
-            f"success {bool(successes[idx])}, length {ep_len}) to {gif_path}"
-        )
+        key, subkey = jax.random.split(key)
+        save_gif(args, drone_env, results, subkey, f"drone_{run_tag}_n{args.n}")
