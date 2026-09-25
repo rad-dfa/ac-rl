@@ -164,7 +164,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("--delta", type=float, default=0.05, help="Allowed P(reject) for --safe (default: 0.05)")
     parser.add_argument("--lambda-lr", type=float, default=0.05, help="Lagrange multiplier step size for --safe (default: 0.05)")
-    parser.add_argument("--lambda-warmup", type=float, default=0, help="Env steps to hold lambda at 0 for --safe (default: 0)")
+    parser.add_argument("--lambda-warmup", type=float, default=0, help="Env steps to hold lambda at --lambda-init for --safe (default: 0)")
+    parser.add_argument("--lambda-init", type=float, default=0, help="Initial lambda for --safe; fixed if --lambda-lr 0 (default: 0)")
     parser.add_argument("--x-low", type=float, default=-1.0, help="Geofence lower x bound (default: -1.0)")
     parser.add_argument("--x-high", type=float, default=1.0, help="Geofence upper x bound (default: 1.0)")
     parser.add_argument("--y-low", type=float, default=-1.0, help="Geofence lower y bound (default: -1.0)")
@@ -212,7 +213,8 @@ if __name__ == "__main__":
     config["DEBUG"] = args.debug
     config["WANDB"] = args.wandb
     if args.safe:
-        config.update(SAFE=True, DELTA=args.delta, LAMBDA_LR=args.lambda_lr, LAMBDA_WARMUP=args.lambda_warmup)
+        config.update(SAFE=True, DELTA=args.delta, LAMBDA_LR=args.lambda_lr, LAMBDA_WARMUP=args.lambda_warmup,
+                      LAMBDA_INIT=args.lambda_init)
 
     key = jax.random.PRNGKey(args.seed)
 
@@ -284,7 +286,7 @@ if __name__ == "__main__":
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
     if args.safe:
-        run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}"
+        run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
 
     # run_tag encodes every setting that changes training, so distinct runs never share
     # files; an identical rerun is refused instead of appending to its CSV / overwriting its checkpoint.

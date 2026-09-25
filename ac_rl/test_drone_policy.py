@@ -59,6 +59,7 @@ def make_parser(description, n_default=100, gif_flag=True):
     parser.add_argument("--delta", type=float, default=0.05, help="--delta the --safe policy was trained with (default: 0.05)")
     parser.add_argument("--lambda-lr", type=float, default=0.05, help="--lambda-lr the --safe policy was trained with (default: 0.05)")
     parser.add_argument("--lambda-warmup", type=float, default=0, help="--lambda-warmup the --safe policy was trained with (default: 0)")
+    parser.add_argument("--lambda-init", type=float, default=0, help="--lambda-init the --safe policy was trained with (default: 0)")
     parser.add_argument("--x-low", type=float, default=-1.0, help="Geofence lower x bound (default: -1.0)")
     parser.add_argument("--x-high", type=float, default=1.0, help="Geofence upper x bound (default: 1.0)")
     parser.add_argument("--y-low", type=float, default=-1.0, help="Geofence lower y bound (default: -1.0)")
@@ -162,10 +163,12 @@ def setup(args):
         )
     else:
         rad_str = "rad"
+        # Must match train_drone_policy.py: the frozen encoder isn't stored in the checkpoint.
         encoder = Encoder(
             max_size=env.sampler.max_size,
             n_tokens=drone_env.n_tokens,
-            seed=args.seed
+            seed=args.seed,
+            binary_reward=args.binary_reward
         )
 
     reward_str = "binary" if args.binary_reward else "shaped"
@@ -176,7 +179,7 @@ def setup(args):
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
     if args.safe:
-        run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}"
+        run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
 
     expected_name = f"policy_params_drone_{run_tag}.msgpack"
     if os.path.basename(args.model_path) != expected_name:

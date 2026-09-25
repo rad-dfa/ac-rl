@@ -166,8 +166,8 @@ def make_train(config, env, network):
                 # exactly on the step an episode ends in the rejecting sink).
                 n_done = traj_batch.done.sum()
                 prob_reject = traj_batch.reward[..., 1].sum() / jnp.maximum(n_done, 1)
-                # Warm-up: hold lam at 0 (pure P(accept) objective) for the first
-                # LAMBDA_WARMUP env steps, so reaching is learned before avoiding.
+                # Warm-up: hold lam at LAMBDA_INIT (default 0: pure P(accept) objective)
+                # for the first LAMBDA_WARMUP env steps, so reaching is learned before avoiding.
                 timestep = traj_batch.info["timestep"][-1].sum() // config["NUM_AGENTS"]
                 lam = jnp.where(
                     (n_done > 0) & (timestep > config.get("LAMBDA_WARMUP", 0)),
@@ -507,7 +507,7 @@ fps              = {fps}
         rng, _rng = jax.random.split(rng)
         runner_state = (train_state, env_state, obsv, _rng)
         (runner_state, lam), metric = jax.lax.scan(
-            _update_step, (runner_state, jnp.float32(0.0)), None, config["NUM_UPDATES"]
+            _update_step, (runner_state, jnp.float32(config.get("LAMBDA_INIT", 0.0))), None, config["NUM_UPDATES"]
         )
         return {"runner_state": runner_state, "lambda": lam, "metrics": metric}
 

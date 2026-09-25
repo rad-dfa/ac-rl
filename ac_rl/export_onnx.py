@@ -213,7 +213,8 @@ def build_network_and_params(ckpt_path):
     env = LogWrapper(env=env, config={"LOG": None})
 
     if cfg["rad"]:
-        encoder = Encoder(max_size=sampler.max_size, n_tokens=drone_env.n_tokens, seed=cfg["seed"])
+        encoder = Encoder(max_size=sampler.max_size, n_tokens=drone_env.n_tokens, seed=cfg["seed"],
+                          binary_reward=cfg["binary_reward"])
     else:
         encoder = EncoderModule(max_size=sampler.max_size)
 
