@@ -55,6 +55,8 @@ def make_parser(description, n_default=100, gif_flag=True):
         action="store_true",
         help="Use binary reward"
     )
+    parser.add_argument("--safe", action="store_true", help="Policy was trained with --safe (PPO-Lagrangian)")
+    parser.add_argument("--delta", type=float, default=0.05, help="--delta the --safe policy was trained with (default: 0.05)")
     parser.add_argument("--x-low", type=float, default=-1.0, help="Geofence lower x bound (default: -1.0)")
     parser.add_argument("--x-high", type=float, default=1.0, help="Geofence upper x bound (default: 1.0)")
     parser.add_argument("--y-low", type=float, default=-1.0, help="Geofence lower y bound (default: -1.0)")
@@ -171,6 +173,8 @@ def setup(args):
         f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
+    if args.safe:
+        run_tag += f"_safe_d{args.delta}"
 
     expected_name = f"policy_params_drone_{run_tag}.msgpack"
     if os.path.basename(args.model_path) != expected_name:
@@ -182,6 +186,7 @@ def setup(args):
         n_agents=env.num_agents,
         max_action=drone_env.max_action,
         deterministic=args.deterministic,
+        safe=args.safe,
     )
 
     key = jax.random.PRNGKey(args.seed + 100)

@@ -23,6 +23,7 @@ class ActorCritic(nn.Module):
     n_agents: int
     max_action: float
     deterministic: bool = False
+    safe: bool = False
 
     @nn.compact
     def __call__(self, batch):
@@ -83,11 +84,25 @@ class ActorCritic(nn.Module):
         )
         actor_std = jnp.exp(actor_logstd)
 
+        if self.safe:
+            # Cost critic for PPO-Lagrangian, stacked as value[..., 1]. Built after
+            # the actor so existing Dense_* param names (and checkpoints) are unchanged.
+            cost_value = nn.Sequential([
+                nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+                nn.tanh,
+                nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
+                nn.tanh,
+                nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))
+            ])(feat)
+            value = jnp.concatenate([value, cost_value], axis=-1)
+        else:
+            value = jnp.squeeze(value, axis=-1)
+
         if self.deterministic:
-            return actor_mean, jnp.squeeze(value, axis=-1)
+            return actor_mean, value
         else:
             pi = distrax.MultivariateNormalDiag(actor_mean, actor_std)
-            return pi, jnp.squeeze(value, axis=-1)
+            return pi, value
 
 
 if __name__ == "__main__":
@@ -142,6 +157,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Use binary reward"
     )
+    parser.add_argument(
+        "--safe",
+        action="store_true",
+        help="PPO-Lagrangian: maximize P(accept) subject to P(reject) <= --delta"
+    )
+    parser.add_argument("--delta", type=float, default=0.05, help="Allowed P(reject) for --safe (default: 0.05)")
+    parser.add_argument("--lambda-lr", type=float, default=0.05, help="Lagrange multiplier step size for --safe (default: 0.05)")
     parser.add_argument("--x-low", type=float, default=-1.0, help="Geofence lower x bound (default: -1.0)")
     parser.add_argument("--x-high", type=float, default=1.0, help="Geofence upper x bound (default: 1.0)")
     parser.add_argument("--y-low", type=float, default=-1.0, help="Geofence lower y bound (default: -1.0)")
@@ -162,6 +184,9 @@ if __name__ == "__main__":
         help="Episode horizon (default: 500)"
     )
     args = parser.parse_args()
+
+    if args.safe and args.binary_reward:
+        parser.error("--safe needs the +1/-1 DFA reward to tell rejections from timeouts; drop --binary-reward")
 
     config = {
         "LR": 3e-4,
@@ -185,6 +210,8 @@ if __name__ == "__main__":
 
     config["DEBUG"] = args.debug
     config["WANDB"] = args.wandb
+    if args.safe:
+        config.update(SAFE=True, DELTA=args.delta, LAMBDA_LR=args.lambda_lr)
 
     if config["WANDB"]:
         wandb.init(
@@ -262,6 +289,8 @@ if __name__ == "__main__":
         f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
+    if args.safe:
+        run_tag += f"_safe_d{args.delta}"
 
     config["LOG"] = f"{args.save_dir}/log_drone_{run_tag}.csv" if args.log else None
 
@@ -270,6 +299,7 @@ if __name__ == "__main__":
         encoder=encoder,
         n_agents=env.num_agents,
         max_action=drone_env.max_action,
+        safe=args.safe,
     )
 
     for i in config:

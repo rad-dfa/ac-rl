@@ -438,7 +438,7 @@ def main():
 
     ckpts = sorted(
         f for f in os.listdir(storage_dir)
-        if f.startswith("policy_params_drone_") and f.endswith(".msgpack")
+        if CKPT_RE.match(f)  # skips checkpoints this exporter can't rebuild (e.g. --safe ones)
     )
 
     results = []

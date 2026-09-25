@@ -36,6 +36,16 @@ def make_train(config, env, network):
     config["MINIBATCH_SIZE"] = (
         config["NUM_ACTORS"] * config["NUM_STEPS"] // config["NUM_MINIBATCHES"]
     )
+    # PPO-Lagrangian: maximize P(accept) s.t. P(reject) <= DELTA. The +1/-1 DFA
+    # reward is split into reward/cost channels [max(R, 0), max(-R, 0)], the
+    # network's value is (..., 2) = [reward value, cost value], and the policy
+    # follows A_r - lam * A_c with lam updated by projected dual ascent.
+    safe = config.get("SAFE", False)
+
+    def safe_metrics(log, info, last_returns):
+        if safe:
+            log["prob_reject"] = sum(r < 0 for r in last_returns) / len(last_returns)
+            log["lambda"] = float(info["lambda"])
 
     def linear_schedule(count):
         frac = (
@@ -73,7 +83,8 @@ def make_train(config, env, network):
         obsv, env_state = jax.vmap(env.reset)(reset_rng)
 
         # TRAIN LOOP
-        def _update_step(runner_state, unused):
+        def _update_step(carry, unused):
+            runner_state, lam = carry
             # COLLECT TRAJECTORIES
             def _env_step(runner_state, unused):
                 train_state, env_state, last_obs, rng = runner_state
@@ -98,11 +109,14 @@ def make_train(config, env, network):
                 rng_step = jax.random.split(_rng, config["NUM_ENVS"])
                 obsv, env_state, reward, done, info = jax.vmap(env.step)(rng_step, env_state, env_act)
                 info = jax.tree.map(lambda x: x.reshape((config["NUM_ACTORS"])), info)
+                reward = jnp.concatenate([reward[agent] for agent in env.agents])
+                if safe:
+                    reward = jnp.stack([jnp.maximum(reward, 0.0), jnp.maximum(-reward, 0.0)], axis=-1)
                 transition = Transition(
                     done=jnp.concatenate([done[agent] for agent in env.agents]),
                     action=action,
                     value=value,
-                    reward=jnp.concatenate([reward[agent] for agent in env.agents]),
+                    reward=reward,
                     log_prob=log_prob,
                     obs=obs_batch,
                     info=info
@@ -127,6 +141,8 @@ def make_train(config, env, network):
                         transition.value,
                         transition.reward,
                     )
+                    if safe:
+                        done = done[:, None]
                     delta = reward + config["GAMMA"] * next_value * (1 - done) - value
                     gae = (
                         delta
@@ -144,6 +160,20 @@ def make_train(config, env, network):
                 return advantages, advantages + traj_batch.value
 
             advantages, targets = _calculate_gae(traj_batch, last_val)
+
+            if safe:
+                # Undiscounted per-episode rejection rate of this rollout (cost is 1
+                # exactly on the step an episode ends in the rejecting sink).
+                n_done = traj_batch.done.sum()
+                prob_reject = traj_batch.reward[..., 1].sum() / jnp.maximum(n_done, 1)
+                lam = jnp.where(
+                    n_done > 0,
+                    jnp.maximum(0.0, lam + config["LAMBDA_LR"] * (prob_reject - config["DELTA"])),
+                    lam,
+                )
+                # The usual 1 / (1 + lam) scaling is dropped: the per-minibatch
+                # advantage normalization in the loss cancels it.
+                advantages = advantages[..., 0] - lam * advantages[..., 1]
 
             # UPDATE NETWORK
             def _update_epoch(update_state, unused):
@@ -229,6 +259,8 @@ def make_train(config, env, network):
             )
             train_state = update_state[0]
             metric = traj_batch.info
+            if safe:
+                metric = {**metric, "lambda": lam}
             rng = update_state[-1]
 
             steps_per_update = config["NUM_ENVS"] * config["NUM_STEPS"]
@@ -288,6 +320,7 @@ def make_train(config, env, network):
                     n = len(last_return_buffer_log)
                     log["prob_fail"] = sum(r <= 0 for r in last_return_buffer_log) / n
                     log["prob_success"] = sum(r > 0 for r in last_return_buffer_log) / n
+                    safe_metrics(log, info, last_return_buffer_log)
 
                     log_file = Path(config.get("LOG"))
                     df = pd.DataFrame([log])
@@ -352,6 +385,7 @@ def make_train(config, env, network):
                     n = len(last_return_buffer_log)
                     log["prob_fail"] = sum(r <= 0 for r in last_return_buffer_log) / n
                     log["prob_success"] = sum(r > 0 for r in last_return_buffer_log) / n
+                    safe_metrics(log, info, last_return_buffer_log)
 
                     timesteps = info["timestep"][-1, :]
                     timestep = int(np.sum(timesteps) / config["NUM_AGENTS"])
@@ -456,19 +490,23 @@ fps              = {fps}
                         fps=log["fps"],
                         ordered=True)
 
+                    safe_metrics(log, info, last_return_buffer_log)
+                    if safe:
+                        print(f"prob_reject      = {log['prob_reject']}\nlambda           = {log['lambda']}")
+
                     start_time_debug = time.time()
 
                 jax.debug.callback(callback, metric, loss_info)
 
             runner_state = (train_state, env_state, last_obs, rng)
-            return runner_state, metric
+            return (runner_state, lam), metric
 
         rng, _rng = jax.random.split(rng)
         runner_state = (train_state, env_state, obsv, _rng)
-        runner_state, metric = jax.lax.scan(
-            _update_step, runner_state, None, config["NUM_UPDATES"]
+        (runner_state, lam), metric = jax.lax.scan(
+            _update_step, (runner_state, jnp.float32(0.0)), None, config["NUM_UPDATES"]
         )
-        return {"runner_state": runner_state, "metrics": metric}
+        return {"runner_state": runner_state, "lambda": lam, "metrics": metric}
 
     return train
 
