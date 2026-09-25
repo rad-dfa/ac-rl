@@ -164,6 +164,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--delta", type=float, default=0.05, help="Allowed P(reject) for --safe (default: 0.05)")
     parser.add_argument("--lambda-lr", type=float, default=0.05, help="Lagrange multiplier step size for --safe (default: 0.05)")
+    parser.add_argument("--lambda-warmup", type=float, default=0, help="Env steps to hold lambda at 0 for --safe (default: 0)")
     parser.add_argument("--x-low", type=float, default=-1.0, help="Geofence lower x bound (default: -1.0)")
     parser.add_argument("--x-high", type=float, default=1.0, help="Geofence upper x bound (default: 1.0)")
     parser.add_argument("--y-low", type=float, default=-1.0, help="Geofence lower y bound (default: -1.0)")
@@ -211,7 +212,7 @@ if __name__ == "__main__":
     config["DEBUG"] = args.debug
     config["WANDB"] = args.wandb
     if args.safe:
-        config.update(SAFE=True, DELTA=args.delta, LAMBDA_LR=args.lambda_lr)
+        config.update(SAFE=True, DELTA=args.delta, LAMBDA_LR=args.lambda_lr, LAMBDA_WARMUP=args.lambda_warmup)
 
     if config["WANDB"]:
         wandb.init(
@@ -290,7 +291,7 @@ if __name__ == "__main__":
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
     if args.safe:
-        run_tag += f"_safe_d{args.delta}"
+        run_tag += f"_safe_d{args.delta}" + (f"_w{int(args.lambda_warmup)}" if args.lambda_warmup else "")
 
     config["LOG"] = f"{args.save_dir}/log_drone_{run_tag}.csv" if args.log else None
 

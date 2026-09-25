@@ -166,8 +166,11 @@ def make_train(config, env, network):
                 # exactly on the step an episode ends in the rejecting sink).
                 n_done = traj_batch.done.sum()
                 prob_reject = traj_batch.reward[..., 1].sum() / jnp.maximum(n_done, 1)
+                # Warm-up: hold lam at 0 (pure P(accept) objective) for the first
+                # LAMBDA_WARMUP env steps, so reaching is learned before avoiding.
+                timestep = traj_batch.info["timestep"][-1].sum() // config["NUM_AGENTS"]
                 lam = jnp.where(
-                    n_done > 0,
+                    (n_done > 0) & (timestep > config.get("LAMBDA_WARMUP", 0)),
                     jnp.maximum(0.0, lam + config["LAMBDA_LR"] * (prob_reject - config["DELTA"])),
                     lam,
                 )
@@ -337,7 +340,7 @@ def make_train(config, env, network):
             if config.get("WANDB"):
                 ep_len_buffer_wandb = deque(maxlen=steps_per_update)
                 return_buffer_wandb = deque(maxlen=steps_per_update)
-                last_return_buffer_log = deque(maxlen=steps_per_update)
+                last_return_buffer_wandb = deque(maxlen=steps_per_update)
                 disc_return_buffer_wandb = deque(maxlen=steps_per_update)
                 start_time_wandb = time.time()
 
@@ -358,7 +361,7 @@ def make_train(config, env, network):
                     return_buffer_wandb.extend(return_values)
 
                     last_return_values = info["returned_episode_last_returns"][info["returned_episode"]]
-                    last_return_buffer_log.extend(last_return_values)
+                    last_return_buffer_wandb.extend(last_return_values)
 
                     disc_return_values = info["returned_episode_disc_returns"][info["returned_episode"]]
                     disc_return_buffer_wandb.extend(disc_return_values)
@@ -382,10 +385,10 @@ def make_train(config, env, network):
                     log["actor_loss"] = np.mean(actor_loss)
                     log["entropy"] = np.mean(entropy)
 
-                    n = len(last_return_buffer_log)
-                    log["prob_fail"] = sum(r <= 0 for r in last_return_buffer_log) / n
-                    log["prob_success"] = sum(r > 0 for r in last_return_buffer_log) / n
-                    safe_metrics(log, info, last_return_buffer_log)
+                    n = len(last_return_buffer_wandb)
+                    log["prob_fail"] = sum(r <= 0 for r in last_return_buffer_wandb) / n
+                    log["prob_success"] = sum(r > 0 for r in last_return_buffer_wandb) / n
+                    safe_metrics(log, info, last_return_buffer_wandb)
 
                     timesteps = info["timestep"][-1, :]
                     timestep = int(np.sum(timesteps) / config["NUM_AGENTS"])
@@ -399,7 +402,7 @@ def make_train(config, env, network):
             if config.get("DEBUG"):
                 ep_len_buffer_debug = deque(maxlen=steps_per_update)
                 return_buffer_debug = deque(maxlen=steps_per_update)
-                last_return_buffer_log = deque(maxlen=steps_per_update)
+                last_return_buffer_debug = deque(maxlen=steps_per_update)
                 disc_return_buffer_debug = deque(maxlen=steps_per_update)
                 start_time_debug = time.time()
 
@@ -420,7 +423,7 @@ def make_train(config, env, network):
                     return_buffer_debug.extend(return_values)
 
                     last_return_values = info["returned_episode_last_returns"][info["returned_episode"]]
-                    last_return_buffer_log.extend(last_return_values)
+                    last_return_buffer_debug.extend(last_return_values)
 
                     disc_return_values = info["returned_episode_disc_returns"][info["returned_episode"]]
                     disc_return_buffer_debug.extend(disc_return_values)
@@ -447,9 +450,9 @@ def make_train(config, env, network):
                     timesteps = info["timestep"][-1, :]
                     log["timestep"] = int(np.sum(timesteps) / config["NUM_AGENTS"])
 
-                    n = len(last_return_buffer_log)
-                    log["prob_fail"] = sum(r <= 0 for r in last_return_buffer_log) / n
-                    log["prob_success"] = sum(r > 0 for r in last_return_buffer_log) / n
+                    n = len(last_return_buffer_debug)
+                    log["prob_fail"] = sum(r <= 0 for r in last_return_buffer_debug) / n
+                    log["prob_success"] = sum(r > 0 for r in last_return_buffer_debug) / n
 
                     jax.debug.print(
                         """
@@ -490,7 +493,7 @@ fps              = {fps}
                         fps=log["fps"],
                         ordered=True)
 
-                    safe_metrics(log, info, last_return_buffer_log)
+                    safe_metrics(log, info, last_return_buffer_debug)
                     if safe:
                         print(f"prob_reject      = {log['prob_reject']}\nlambda           = {log['lambda']}")
 
