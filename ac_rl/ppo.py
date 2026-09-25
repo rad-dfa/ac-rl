@@ -84,7 +84,7 @@ def make_train(config, env, network):
 
         # TRAIN LOOP
         def _update_step(carry, unused):
-            runner_state, lam = carry
+            runner_state, (lam, hold_step, hold_rejects, hold_episodes) = carry
             # COLLECT TRAJECTORIES
             def _env_step(runner_state, unused):
                 train_state, env_state, last_obs, rng = runner_state
@@ -162,17 +162,31 @@ def make_train(config, env, network):
             advantages, targets = _calculate_gae(traj_batch, last_val)
 
             if safe:
-                # Undiscounted per-episode rejection rate of this rollout (cost is 1
-                # exactly on the step an episode ends in the rejecting sink).
+                # Episodes ending in this rollout and how many of them ended in the rejecting
+                # sink (cost is 1 exactly on that step), for an undiscounted per-episode rate.
                 n_done = traj_batch.done.sum()
-                prob_reject = traj_batch.reward[..., 1].sum() / jnp.maximum(n_done, 1)
+                n_reject = traj_batch.reward[..., 1].sum()
+                # lam is held for LAMBDA_EVERY updates so the policy can respond to it, then
+                # updated from the rejection rate pooled over the second half of the hold,
+                # i.e. measured on the settled policy (LAMBDA_EVERY = 1: every update).
+                every = config.get("LAMBDA_EVERY", 1)
+                hold_step = hold_step + 1
+                measuring = hold_step > every // 2
+                hold_rejects = hold_rejects + jnp.where(measuring, n_reject, 0.0)
+                hold_episodes = hold_episodes + jnp.where(measuring, n_done, 0)
+                end_of_hold = hold_step >= every
                 # Warm-up: hold lam at LAMBDA_INIT (default 0: pure P(accept) objective)
                 # for the first LAMBDA_WARMUP env steps, so reaching is learned before avoiding.
                 timestep = traj_batch.info["timestep"][-1].sum() // config["NUM_AGENTS"]
+                prob_reject = hold_rejects / jnp.maximum(hold_episodes, 1)
                 lam = jnp.where(
-                    (n_done > 0) & (timestep > config.get("LAMBDA_WARMUP", 0)),
+                    end_of_hold & (hold_episodes > 0) & (timestep > config.get("LAMBDA_WARMUP", 0)),
                     jnp.maximum(0.0, lam + config["LAMBDA_LR"] * (prob_reject - config["DELTA"])),
                     lam,
+                )
+                hold_step, hold_rejects, hold_episodes = jax.tree.map(
+                    lambda x: jnp.where(end_of_hold, jnp.zeros_like(x), x),
+                    (hold_step, hold_rejects, hold_episodes),
                 )
                 # The usual 1 / (1 + lam) scaling is dropped: the per-minibatch
                 # advantage normalization in the loss cancels it.
@@ -502,12 +516,14 @@ fps              = {fps}
                 jax.debug.callback(callback, metric, loss_info)
 
             runner_state = (train_state, env_state, last_obs, rng)
-            return (runner_state, lam), metric
+            return (runner_state, (lam, hold_step, hold_rejects, hold_episodes)), metric
 
         rng, _rng = jax.random.split(rng)
         runner_state = (train_state, env_state, obsv, _rng)
-        (runner_state, lam), metric = jax.lax.scan(
-            _update_step, (runner_state, jnp.float32(config.get("LAMBDA_INIT", 0.0))), None, config["NUM_UPDATES"]
+        # Dual state: (lam, updates into the current hold, pooled rejections, pooled episodes).
+        dual = (jnp.float32(config.get("LAMBDA_INIT", 0.0)), jnp.int32(0), jnp.float32(0.0), jnp.int32(0))
+        (runner_state, (lam, *_)), metric = jax.lax.scan(
+            _update_step, (runner_state, dual), None, config["NUM_UPDATES"]
         )
         return {"runner_state": runner_state, "lambda": lam, "metrics": metric}
 

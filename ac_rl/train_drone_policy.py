@@ -163,9 +163,16 @@ if __name__ == "__main__":
         help="PPO-Lagrangian: maximize P(accept) subject to P(reject) <= --delta"
     )
     parser.add_argument("--delta", type=float, default=0.05, help="Allowed P(reject) for --safe (default: 0.05)")
-    parser.add_argument("--lambda-lr", type=float, default=0.05, help="Lagrange multiplier step size for --safe (default: 0.05)")
+    parser.add_argument("--lambda-lr", type=float, default=0.05, help="Lagrange multiplier step size per lambda update for --safe (default: 0.05)")
     parser.add_argument("--lambda-warmup", type=float, default=0, help="Env steps to hold lambda at --lambda-init for --safe (default: 0)")
     parser.add_argument("--lambda-init", type=float, default=0, help="Initial lambda for --safe; fixed if --lambda-lr 0 (default: 0)")
+    parser.add_argument(
+        "--lambda-every",
+        type=int,
+        default=1,
+        help="Hold lambda for this many PPO updates, then update it from the P(reject) of the hold's "
+             "second half, measured on the policy after it has responded to lambda (default: 1)"
+    )
     parser.add_argument("--x-low", type=float, default=-1.0, help="Geofence lower x bound (default: -1.0)")
     parser.add_argument("--x-high", type=float, default=1.0, help="Geofence upper x bound (default: 1.0)")
     parser.add_argument("--y-low", type=float, default=-1.0, help="Geofence lower y bound (default: -1.0)")
@@ -214,7 +221,7 @@ if __name__ == "__main__":
     config["WANDB"] = args.wandb
     if args.safe:
         config.update(SAFE=True, DELTA=args.delta, LAMBDA_LR=args.lambda_lr, LAMBDA_WARMUP=args.lambda_warmup,
-                      LAMBDA_INIT=args.lambda_init)
+                      LAMBDA_INIT=args.lambda_init, LAMBDA_EVERY=args.lambda_every)
 
     key = jax.random.PRNGKey(args.seed)
 
@@ -287,6 +294,7 @@ if __name__ == "__main__":
     )
     if args.safe:
         run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
+        run_tag += f"_k{args.lambda_every}" if args.lambda_every > 1 else ""  # k = 1 keeps earlier names
 
     # run_tag encodes every setting that changes training, so distinct runs never share
     # files; an identical rerun is refused instead of appending to its CSV / overwriting its checkpoint.

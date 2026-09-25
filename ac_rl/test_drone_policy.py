@@ -60,6 +60,7 @@ def make_parser(description, n_default=100, gif_flag=True):
     parser.add_argument("--lambda-lr", type=float, default=0.05, help="--lambda-lr the --safe policy was trained with (default: 0.05)")
     parser.add_argument("--lambda-warmup", type=float, default=0, help="--lambda-warmup the --safe policy was trained with (default: 0)")
     parser.add_argument("--lambda-init", type=float, default=0, help="--lambda-init the --safe policy was trained with (default: 0)")
+    parser.add_argument("--lambda-every", type=int, default=1, help="--lambda-every the --safe policy was trained with (default: 1)")
     parser.add_argument("--x-low", type=float, default=-1.0, help="Geofence lower x bound (default: -1.0)")
     parser.add_argument("--x-high", type=float, default=1.0, help="Geofence upper x bound (default: 1.0)")
     parser.add_argument("--y-low", type=float, default=-1.0, help="Geofence lower y bound (default: -1.0)")
@@ -180,6 +181,7 @@ def setup(args):
     )
     if args.safe:
         run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
+        run_tag += f"_k{args.lambda_every}" if args.lambda_every > 1 else ""
 
     expected_name = f"policy_params_drone_{run_tag}.msgpack"
     if os.path.basename(args.model_path) != expected_name:
