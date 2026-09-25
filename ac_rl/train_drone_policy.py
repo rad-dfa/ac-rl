@@ -214,13 +214,6 @@ if __name__ == "__main__":
     if args.safe:
         config.update(SAFE=True, DELTA=args.delta, LAMBDA_LR=args.lambda_lr, LAMBDA_WARMUP=args.lambda_warmup)
 
-    if config["WANDB"]:
-        wandb.init(
-            entity="beyazit-y-berkeley-eecs",
-            project="ac-rl-drone-policy",
-            config=config
-        )
-
     key = jax.random.PRNGKey(args.seed)
 
     drone_env = DroneEnv(
@@ -291,9 +284,24 @@ if __name__ == "__main__":
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
     if args.safe:
-        run_tag += f"_safe_d{args.delta}" + (f"_w{int(args.lambda_warmup)}" if args.lambda_warmup else "")
+        run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}"
 
+    # run_tag encodes every setting that changes training, so distinct runs never share
+    # files; an identical rerun is refused instead of appending to its CSV / overwriting its checkpoint.
+    ckpt_path = f"{args.save_dir}/policy_params_drone_{run_tag}.msgpack"
     config["LOG"] = f"{args.save_dir}/log_drone_{run_tag}.csv" if args.log else None
+    existing = [p for p in (ckpt_path, config["LOG"]) if p and os.path.exists(p)]
+    if existing:
+        parser.error(f"output already exists: {', '.join(existing)} (delete it or use another --save-dir)")
+    os.makedirs(args.save_dir, exist_ok=True)
+
+    if config["WANDB"]:
+        wandb.init(
+            entity="beyazit-y-berkeley-eecs",
+            project="ac-rl-drone-policy",
+            name=run_tag,
+            config=config
+        )
 
     network = ActorCritic(
         action_dim=env.action_space(env.agents[0]).shape[0],
@@ -322,10 +330,8 @@ if __name__ == "__main__":
     train_jit = jax.jit(make_train(config, env, network))
     out = train_jit(key)
 
-    os.makedirs(args.save_dir, exist_ok=True)
-
     trained_params = out["runner_state"][0].params
-    with open(f"{args.save_dir}/policy_params_drone_{run_tag}.msgpack", "wb") as f:
+    with open(ckpt_path, "wb") as f:
         f.write(serialization.to_bytes(trained_params))
 
     if config["WANDB"]:
