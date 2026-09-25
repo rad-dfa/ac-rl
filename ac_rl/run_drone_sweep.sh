@@ -16,7 +16,7 @@ done
 
 for seed in "${SEEDS[@]}"; do
     for max_size in "${MAX_SIZES[@]}"; do
-        for sampler in R RA RAD; do
+        for sampler in RA; do
             for reward_flag in "--binary-reward" ""; do
                 for rad_flag in "" "--no-rad"; do
                     cmd=(uv run train_drone_policy.py
