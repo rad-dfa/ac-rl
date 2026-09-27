@@ -12,6 +12,7 @@ from dfax import batch2graph
 import flax.serialization as serialization
 from flax.traverse_util import flatten_dict
 from rad_embeddings import Encoder, EncoderModule
+from rad_embeddings.encoder import parse_p
 from dfa_gym import DroneEnv, DFAWrapper
 from flax.linen.initializers import constant, orthogonal
 from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
@@ -133,6 +134,13 @@ if __name__ == "__main__":
         help="Number of DFA states (default: 5)"
     )
     parser.add_argument(
+        "--p",
+        type=parse_p,
+        default=None,
+        help="Sampler's DFA-size distribution: sizes n are drawn with weight p**n, or uniformly if None; "
+             "also selects the pretrained RAD encoder (default: None)"
+    )
+    parser.add_argument(
         "--wandb",
         action="store_true",
         help="Log to wandb"
@@ -243,25 +251,26 @@ if __name__ == "__main__":
         sampler = ReachSampler(
             max_size=args.max_size,
             n_tokens=drone_env.n_tokens,
-            p=None,
+            p=args.p,
         )
         sampler_str = f"Reach_{args.max_size}_{drone_env.n_tokens}"
     elif args.sampler in ["ReachAvoid", "RA"]:
         sampler = ReachAvoidSampler(
             max_size=args.max_size,
             n_tokens=drone_env.n_tokens,
-            p=None,
+            p=args.p,
         )
         sampler_str = f"ReachAvoid_{args.max_size}_{drone_env.n_tokens}"
     elif args.sampler in ["ReachAvoidDerived", "RAD"]:
         sampler = RADSampler(
             max_size=args.max_size,
             n_tokens=drone_env.n_tokens,
-            p=None,
+            p=args.p,
         )
         sampler_str = f"RAD_{args.max_size}_{drone_env.n_tokens}"
     else:
         raise ValueError(f"Unknown sampler type: {args.sampler}")
+    sampler_str += f"_p{args.p}" if args.p is not None else ""  # p = None keeps earlier names
 
     env = DFAWrapper(
         env=drone_env,
@@ -282,7 +291,9 @@ if __name__ == "__main__":
             max_size=env.sampler.max_size,
             n_tokens=drone_env.n_tokens,
             seed=args.seed,
-            binary_reward=args.binary_reward
+            binary_reward=args.binary_reward,
+            sampler=args.sampler,
+            p=args.p,
         )
 
     reward_str = "binary" if args.binary_reward else "shaped"
@@ -300,9 +311,12 @@ if __name__ == "__main__":
     # files; an identical rerun is refused instead of appending to its CSV / overwriting its checkpoint.
     ckpt_path = f"{args.save_dir}/policy_params_drone_{run_tag}.msgpack"
     config["LOG"] = f"{args.save_dir}/log_drone_{run_tag}.csv" if args.log else None
-    existing = [p for p in (ckpt_path, config["LOG"]) if p and os.path.exists(p)]
-    if existing:
-        parser.error(f"output already exists: {', '.join(existing)} (delete it or use another --save-dir)")
+    if os.path.exists(ckpt_path):
+        parser.error(f"already trained: {ckpt_path} (delete it or use another --save-dir)")
+    if config["LOG"] and os.path.exists(config["LOG"]):
+        # The checkpoint is only written once training finishes, so a log without one is from an interrupted run.
+        parser.error(f"{config['LOG']} exists without a checkpoint, left over from an interrupted run "
+                     "(delete it or use another --save-dir)")
     os.makedirs(args.save_dir, exist_ok=True)
 
     if config["WANDB"]:

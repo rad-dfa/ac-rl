@@ -6,6 +6,7 @@ from ppo import batchify
 from train_drone_policy import ActorCritic
 import flax.serialization as serialization
 from rad_embeddings import Encoder, EncoderModule
+from rad_embeddings.encoder import parse_p
 from dfa_gym import DroneEnv, DFAWrapper, animate_drone_trace
 from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
 
@@ -44,6 +45,12 @@ def make_parser(description, n_default=100, gif_flag=True):
         type=int,
         default=5,
         help="Number of DFA states (default: 5)"
+    )
+    parser.add_argument(
+        "--p",
+        type=parse_p,
+        default=None,
+        help="--p the policy was trained with; also selects the pretrained RAD encoder (default: None)"
     )
     parser.add_argument(
         "--no-rad",
@@ -130,25 +137,26 @@ def setup(args):
         sampler = ReachSampler(
             max_size=args.max_size,
             n_tokens=drone_env.n_tokens,
-            p=None,
+            p=args.p,
         )
         sampler_str = f"Reach_{args.max_size}_{drone_env.n_tokens}"
     elif args.sampler in ["ReachAvoid", "RA"]:
         sampler = ReachAvoidSampler(
             max_size=args.max_size,
             n_tokens=drone_env.n_tokens,
-            p=None,
+            p=args.p,
         )
         sampler_str = f"ReachAvoid_{args.max_size}_{drone_env.n_tokens}"
     elif args.sampler in ["ReachAvoidDerived", "RAD"]:
         sampler = RADSampler(
             max_size=args.max_size,
             n_tokens=drone_env.n_tokens,
-            p=None,
+            p=args.p,
         )
         sampler_str = f"RAD_{args.max_size}_{drone_env.n_tokens}"
     else:
         raise ValueError(f"Unknown sampler type: {args.sampler}")
+    sampler_str += f"_p{args.p}" if args.p is not None else ""
 
     env = DFAWrapper(
         env=drone_env,
@@ -169,7 +177,9 @@ def setup(args):
             max_size=env.sampler.max_size,
             n_tokens=drone_env.n_tokens,
             seed=args.seed,
-            binary_reward=args.binary_reward
+            binary_reward=args.binary_reward,
+            sampler=args.sampler,
+            p=args.p,
         )
 
     reward_str = "binary" if args.binary_reward else "shaped"
