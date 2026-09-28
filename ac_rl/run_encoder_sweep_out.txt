@@ -1,0 +1,254 @@
+=== [1/24] sampler=RAD max_size=10 p=0.5 rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.005
+LAMBDA_WARMUP  : 0
+LAMBDA_INIT    : 0.5
+LAMBDA_EVERY   : 1
+LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+=== [2/24] sampler=RAD max_size=10 p=0.5 --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.005
+LAMBDA_WARMUP  : 0
+LAMBDA_INIT    : 0.5
+LAMBDA_EVERY   : 1
+LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+=== [3/24] sampler=RAD max_size=10 p=None rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.005
+LAMBDA_WARMUP  : 0
+LAMBDA_INIT    : 0.5
+LAMBDA_EVERY   : 1
+LOG            : storage/log_drone_seed_42_RAD_10_10_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+=== [4/24] sampler=RAD max_size=10 p=None --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.005
+LAMBDA_WARMUP  : 0
+LAMBDA_INIT    : 0.5
+LAMBDA_EVERY   : 1
+LOG            : storage/log_drone_seed_42_RAD_10_10_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+=== [5/24] sampler=RAD max_size=5 p=0.5 rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.005
+LAMBDA_WARMUP  : 0
+LAMBDA_INIT    : 0.5
+LAMBDA_EVERY   : 1
+LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+=== [6/24] sampler=RAD max_size=5 p=0.5 --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.005
+LAMBDA_WARMUP  : 0
+LAMBDA_INIT    : 0.5
+LAMBDA_EVERY   : 1
+LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+=== [7/24] sampler=RAD max_size=5 p=None rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.005
+LAMBDA_WARMUP  : 0
+LAMBDA_INIT    : 0.5
+LAMBDA_EVERY   : 1
+LOG            : storage/log_drone_seed_42_RAD_5_10_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+=== [8/24] sampler=RAD max_size=5 p=None --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.005
+LAMBDA_WARMUP  : 0
+LAMBDA_INIT    : 0.5
+LAMBDA_EVERY   : 1
+LOG            : storage/log_drone_seed_42_RAD_5_10_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+=== [9/24] sampler=R max_size=10 p=0.5 rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.005
+LAMBDA_WARMUP  : 0
+LAMBDA_INIT    : 0.5
+LAMBDA_EVERY   : 1
+LOG            : storage/log_drone_seed_42_Reach_10_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+=== [10/24] sampler=R max_size=10 p=0.5 --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.005
+LAMBDA_WARMUP  : 0
+LAMBDA_INIT    : 0.5
+LAMBDA_EVERY   : 1
+LOG            : storage/log_drone_seed_42_Reach_10_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+=== [11/24] sampler=R max_size=10 p=None rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.005
+LAMBDA_WARMUP  : 0
+LAMBDA_INIT    : 0.5
+LAMBDA_EVERY   : 1
+LOG            : storage/log_drone_seed_42_Reach_10_10_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+=== [12/24] sampler=R max_size=10 p=None --no-rad
