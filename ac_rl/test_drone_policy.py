@@ -10,7 +10,7 @@ from rad_embeddings.encoder import parse_p
 from dfa_gym import DroneEnv, DFAWrapper, animate_drone_trace
 from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
 
-# Matches train_drone_policy.py's config["GAMMA"] (used by LogWrapper for disc_return).
+# Default of train_drone_policy.py's --gamma (used by LogWrapper for disc_return).
 GAMMA = 0.99
 
 
@@ -53,6 +53,18 @@ def make_parser(description, n_default=100, gif_flag=True):
         help="--p the policy was trained with; also selects the pretrained RAD encoder (default: None)"
     )
     parser.add_argument(
+        "--eval-sampler",
+        type=str,
+        default=None,
+        help="Test on this sampler's tasks instead of --sampler's; the encoder still follows --sampler (default: --sampler)"
+    )
+    parser.add_argument(
+        "--eval-p",
+        type=parse_p,
+        default=argparse.SUPPRESS,
+        help="Test on DFA sizes drawn with this p instead of --p; the encoder still follows --p (default: --p)"
+    )
+    parser.add_argument(
         "--no-rad",
         action="store_true",
         help="Don't use pretrained RAD embeddings."
@@ -87,6 +99,7 @@ def make_parser(description, n_default=100, gif_flag=True):
         default=500,
         help="Episode horizon (default: 500)"
     )
+    parser.add_argument("--gamma", type=float, default=GAMMA, help=f"--gamma the policy was trained with; also discounts the reported return (default: {GAMMA})")
     parser.add_argument(
         "--n",
         type=int,
@@ -117,6 +130,25 @@ def make_parser(description, n_default=100, gif_flag=True):
     return parser
 
 
+def make_sampler(name, max_size, n_tokens, p):
+    """Returns (sampler, sampler_str), sampler_str being its part of train_drone_policy.py's run name."""
+    if name in ["R", "Reach"]:
+        sampler, long_name = ReachSampler(max_size=max_size, n_tokens=n_tokens, p=p), "Reach"
+    elif name in ["ReachAvoid", "RA"]:
+        sampler, long_name = ReachAvoidSampler(max_size=max_size, n_tokens=n_tokens, p=p), "ReachAvoid"
+    elif name in ["ReachAvoidDerived", "RAD"]:
+        sampler, long_name = RADSampler(max_size=max_size, n_tokens=n_tokens, p=p), "RAD"
+    else:
+        raise ValueError(f"Unknown sampler type: {name}")
+    sampler_str = f"{long_name}_{max_size}_{n_tokens}" + (f"_p{p}" if p is not None else "")
+    return sampler, sampler_str
+
+
+def eval_task(args):
+    """(sampler, p) of the test tasks: --eval-sampler/--eval-p, each defaulting to the training value."""
+    return args.eval_sampler or args.sampler, getattr(args, "eval_p", args.p)
+
+
 def setup(args):
     """Builds the env and network exactly as train_drone_policy.py does and loads the params."""
     drone_env = DroneEnv(
@@ -133,30 +165,12 @@ def setup(args):
         max_steps_in_episode=args.max_steps_in_episode,
     )
 
-    if args.sampler in ["R", "Reach"]:
-        sampler = ReachSampler(
-            max_size=args.max_size,
-            n_tokens=drone_env.n_tokens,
-            p=args.p,
-        )
-        sampler_str = f"Reach_{args.max_size}_{drone_env.n_tokens}"
-    elif args.sampler in ["ReachAvoid", "RA"]:
-        sampler = ReachAvoidSampler(
-            max_size=args.max_size,
-            n_tokens=drone_env.n_tokens,
-            p=args.p,
-        )
-        sampler_str = f"ReachAvoid_{args.max_size}_{drone_env.n_tokens}"
-    elif args.sampler in ["ReachAvoidDerived", "RAD"]:
-        sampler = RADSampler(
-            max_size=args.max_size,
-            n_tokens=drone_env.n_tokens,
-            p=args.p,
-        )
-        sampler_str = f"RAD_{args.max_size}_{drone_env.n_tokens}"
-    else:
-        raise ValueError(f"Unknown sampler type: {args.sampler}")
-    sampler_str += f"_p{args.p}" if args.p is not None else ""
+    sampler, sampler_str = make_sampler(args.sampler, args.max_size, drone_env.n_tokens, args.p)
+    # --eval-sampler/--eval-p only change the test tasks; the training ones above still pick the encoder and name.
+    eval_name, eval_p = eval_task(args)
+    if (eval_name, eval_p) != (args.sampler, args.p):
+        sampler, _ = make_sampler(eval_name, args.max_size, drone_env.n_tokens, eval_p)
+        print(f"Testing on {eval_name} tasks with p={eval_p} (trained on {args.sampler}, p={args.p})")
 
     env = DFAWrapper(
         env=drone_env,
@@ -189,6 +203,7 @@ def setup(args):
         f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
+    run_tag += f"_g{args.gamma}" if args.gamma != GAMMA else ""
     if args.safe:
         run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
         run_tag += f"_k{args.lambda_every}" if args.lambda_every > 1 else ""
@@ -218,7 +233,7 @@ def setup(args):
     return drone_env, env, network, params, run_tag, key
 
 
-def run_episodes(env, network, params, keys, deterministic, max_steps, batch_size, dfa=None):
+def run_episodes(env, network, params, keys, deterministic, max_steps, batch_size, dfa=None, gamma=GAMMA):
     """Rolls out one episode per key (vmapped in chunks of batch_size).
 
     If `dfa` (a dfax.DFAx) is given, every episode is conditioned on it instead of a
@@ -274,7 +289,7 @@ def run_episodes(env, network, params, keys, deterministic, max_steps, batch_siz
                 "fail": done & rejected,
                 "ep_len": carry["ep_len"] + 1,
                 "ep_reward": carry["ep_reward"] + reward,
-                "ep_disc_return": carry["ep_disc_return"] + reward * GAMMA ** carry["ep_len"],
+                "ep_disc_return": carry["ep_disc_return"] + reward * gamma ** carry["ep_len"],
             }
             # Freeze the carry once the episode has ended.
             carry = jax.tree_util.tree_map(lambda old, nw: jnp.where(carry["done"], old, nw), carry, new)
@@ -366,10 +381,12 @@ if __name__ == "__main__":
     key, subkey = jax.random.split(key)
     keys = jax.random.split(subkey, args.n)
     results = run_episodes(
-        env, network, params, keys, args.deterministic, args.max_steps_in_episode, batch_size
+        env, network, params, keys, args.deterministic, args.max_steps_in_episode, batch_size, gamma=args.gamma
     )
     print_stats(results)
 
     if args.generate_gif:
         key, subkey = jax.random.split(key)
-        save_gif(args, drone_env, results, subkey, f"drone_{run_tag}_n{args.n}")
+        eval_name, eval_p = eval_task(args)
+        eval_str = f"_eval_{eval_name}_p{eval_p}" if (eval_name, eval_p) != (args.sampler, args.p) else ""
+        save_gif(args, drone_env, results, subkey, f"drone_{run_tag}{eval_str}_n{args.n}")

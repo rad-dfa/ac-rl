@@ -58,7 +58,8 @@ if __name__ == "__main__":
     key, subkey = jax.random.split(key)
     keys = jax.random.split(subkey, args.n)
     results = run_episodes(
-        env, network, params, keys, args.deterministic, args.max_steps_in_episode, batch_size, dfa=dfa
+        env, network, params, keys, args.deterministic, args.max_steps_in_episode, batch_size, dfa=dfa,
+        gamma=args.gamma
     )
     print_stats(results)
 

@@ -25,8 +25,8 @@ LOG_RE = re.compile(
     r"(?:_p(?P<p>[^_]+))?_(?P<rad>no_rad|rad)_(?P<tag>.+)\.csv$"
 )
 
-# Grid layout, in run_encoder_sweep.sh order: rows are samplers, columns are (max size, p).
-SAMPLERS = ["RAD", "Reach", "ReachAvoid"]
+# Grid layout, in run_encoder_sweep.sh order (Reach, no longer swept, last): rows are samplers, columns are (max size, p).
+SAMPLERS = ["ReachAvoid", "RAD", "Reach"]
 COLUMNS = [(10, "0.5"), (10, "None"), (5, "0.5"), (5, "None")]
 
 METHODS = {"rad": "RAD", "no_rad": "No RAD"}
@@ -162,7 +162,7 @@ def plot_grid(configs, metric, delta, path):
                         notes.append(f"{'*' * (len(notes) + 1)} {title}: {incomplete_note(method, run)} (marked •)")
                         title += "*" * len(notes)
             else:
-                ax.text(0.5, 0.5, "not run yet", transform=ax.transAxes, ha="center", va="center", color=MUTED)
+                ax.text(0.5, 0.5, "no runs", transform=ax.transAxes, ha="center", va="center", color=MUTED)
                 # No data, so no y-scale to show; tick_params only touches this panel even when y is shared.
                 ax.grid(False)
                 ax.spines["left"].set_visible(False)

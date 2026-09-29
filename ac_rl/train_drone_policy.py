@@ -200,6 +200,7 @@ if __name__ == "__main__":
         default=500,
         help="Episode horizon (default: 500)"
     )
+    parser.add_argument("--gamma", type=float, default=0.99, help="PPO discount factor, for rewards and --safe costs (default: 0.99)")
     args = parser.parse_args()
 
     if args.safe and args.binary_reward:
@@ -212,7 +213,7 @@ if __name__ == "__main__":
         "TOTAL_TIMESTEPS": 1e7,
         "UPDATE_EPOCHS": 4,
         "NUM_MINIBATCHES": 16,
-        "GAMMA": 0.99,
+        "GAMMA": args.gamma,
         "GAE_LAMBDA": 0.95,
         "CLIP_EPS": 0.2,
         # Continuous-control PPO convention (e.g. CleanRL's ppo_continuous_action.py):
@@ -303,6 +304,7 @@ if __name__ == "__main__":
         f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
+    run_tag += f"_g{args.gamma}" if args.gamma != 0.99 else ""  # gamma = 0.99 keeps earlier names
     if args.safe:
         run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
         run_tag += f"_k{args.lambda_every}" if args.lambda_every > 1 else ""  # k = 1 keeps earlier names
