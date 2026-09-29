@@ -203,6 +203,7 @@ def setup(args):
         f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
+    run_tag += "_sdstd"
     run_tag += f"_g{args.gamma}" if args.gamma != GAMMA else ""
     if args.safe:
         run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
@@ -228,7 +229,11 @@ def setup(args):
     params = network.init(subkey, init_x)
 
     with open(args.model_path, "rb") as f:
-        params = serialization.from_bytes(params, f.read())
+        ckpt = f.read()
+    if "actor_logstd" in serialization.msgpack_restore(ckpt).get("params", {}):
+        raise SystemExit(f"{args.model_path} was trained with the earlier state-independent log-std; "
+                         "evaluate it with test_drone_policy.py from commit 220e73b")
+    params = serialization.from_bytes(params, ckpt)
 
     return drone_env, env, network, params, run_tag, key
 

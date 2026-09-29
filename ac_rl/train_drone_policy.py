@@ -60,30 +60,25 @@ class ActorCritic(nn.Module):
             nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))
         ])(feat)
 
-        actor_mean = nn.Sequential([
+        actor_feat = nn.Sequential([
             nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.tanh,
             nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.tanh,
-            nn.Dense(self.action_dim, kernel_init=orthogonal(0.01), bias_init=constant(0.0))
         ])(feat)
+        actor_mean = nn.Dense(self.action_dim, kernel_init=orthogonal(0.01), bias_init=constant(0.0))(actor_feat)
         # Bound the mean to the env's actual action range instead of leaving it
         # unconstrained: DroneEnv silently clips whatever action it's given, so
         # an unbounded mean that drifts outside [-max_action, max_action] just
         # wastes samples on actions that get clipped before reaching the dynamics.
         actor_mean = self.max_action * nn.tanh(actor_mean)
 
-        # State-independent log-std (standard continuous-control PPO practice),
-        # initialized relative to max_action so initial exploration noise is on
-        # the same scale as the action range, rather than a fixed unit-Gaussian
-        # default that could be wildly too large or small depending on the env's
-        # geofence/max-speed settings.
-        actor_logstd = self.param(
-            "actor_logstd",
-            lambda key, shape: jnp.full(shape, np.log(0.5 * self.max_action), dtype=jnp.float32),
-            (self.action_dim,)
-        )
-        actor_std = jnp.exp(actor_logstd)
+        # State-dependent std from the same features as the mean, as in earlier automata-conditioned
+        # policies: softplus(tanh(.)) lies in (softplus(-1), softplus(1)) = (0.31, 1.31), in units of
+        # max_action, so exploration noise can neither collapse nor blow up (it starts at ln 2 = 0.69).
+        # Built after the mean's output layer so Dense_0..Dense_7 keep their names (export_onnx.py reads them).
+        actor_std = nn.Dense(self.action_dim, kernel_init=orthogonal(0.01), bias_init=constant(0.0))(actor_feat)
+        actor_std = self.max_action * (nn.softplus(nn.tanh(actor_std)) + 1e-3)
 
         if self.safe:
             # Cost critic for PPO-Lagrangian, stacked as value[..., 1]. Built after
@@ -216,10 +211,9 @@ if __name__ == "__main__":
         "GAMMA": args.gamma,
         "GAE_LAMBDA": 0.95,
         "CLIP_EPS": 0.2,
-        # Continuous-control PPO convention (e.g. CleanRL's ppo_continuous_action.py):
-        # a Gaussian's differential entropy grows simply by inflating variance,
-        # which fights the bounded/clipped action space here -- drop the entropy
-        # bonus rather than let it push the policy toward a saturated std.
+        # No entropy bonus: ActorCritic's std has a floor, so exploration can't collapse, and a
+        # Gaussian's entropy grows simply by inflating variance, so a bonus would only push the
+        # std toward its ceiling (1.31 * max_action) against the bounded/clipped action space.
         "ENT_COEF": 0.0,
         "VF_COEF": 0.5,
         "MAX_GRAD_NORM": 0.5,
@@ -304,6 +298,9 @@ if __name__ == "__main__":
         f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
+    # State-dependent std: keeps these checkpoints apart from the earlier learned-log-std ones, which
+    # have a different architecture but would otherwise share names (and count as "already trained").
+    run_tag += "_sdstd"
     run_tag += f"_g{args.gamma}" if args.gamma != 0.99 else ""  # gamma = 0.99 keeps earlier names
     if args.safe:
         run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
