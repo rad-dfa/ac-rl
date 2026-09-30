@@ -19,7 +19,7 @@ cd "$(dirname "$0")"
 # so reaching is learned before rejections are penalized.
 lambda_schedules=("0.5 0" "0 2e6")
 samplers=(RA RAD)
-max_sizes=(10 5)
+max_sizes=(5)
 ps=(0.5 None)
 rad_flags=("" --no-rad)
 
