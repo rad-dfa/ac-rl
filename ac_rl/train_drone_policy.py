@@ -18,6 +18,42 @@ from flax.linen.initializers import constant, orthogonal
 from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
 
 
+# Bounds and initial value of the policy's std, before tanh squashing (see SquashedGaussian): action
+# noise is about std * max_action mid-range and shrinks toward the action bounds. The floor sits below
+# the 0.08-0.15 that successful drone policies converged to, so it never keeps them from getting precise.
+STD_MIN, STD_MAX, STD_INIT = 0.05, 1.0, 0.5
+# How far inside +-1 log_prob keeps tanh values, since atanh(+-1) is infinite.
+SQUASH_EPS = 1e-6
+
+
+class SquashedGaussian:
+    """Diagonal Gaussian over u, acting with max_action * tanh(u): actions always lie inside the bounds,
+    so the env never clips them and no two samples collapse onto the same clipped action.
+
+    Implements the parts of a distrax distribution that ppo.py uses. log_prob scores an action by the
+    Gaussian density of u = atanh(action / max_action) without tanh's log-Jacobian: that term depends
+    only on the action, so it cancels in PPO's probability ratio, the only place log_prob is used.
+    entropy is the Gaussian's before squashing (the squashed one has no closed form); with ENT_COEF 0
+    it only appears in the logs.
+    """
+
+    def __init__(self, loc, scale, max_action):
+        self.base = distrax.MultivariateNormalDiag(loc, scale)
+        self.max_action = max_action
+
+    def sample(self, seed):
+        return self.max_action * jnp.tanh(self.base.sample(seed=seed))
+
+    def log_prob(self, action):
+        # float32 tanh rounds far-out samples to exactly +-1; clamping gives them a finite u, the same
+        # one for the old and new policy, so PPO's ratio stays exact.
+        u = jnp.arctanh(jnp.clip(action / self.max_action, -1 + SQUASH_EPS, 1 - SQUASH_EPS))
+        return self.base.log_prob(u)
+
+    def entropy(self):
+        return self.base.entropy()
+
+
 class ActorCritic(nn.Module):
     action_dim: int
     encoder: Encoder
@@ -66,19 +102,21 @@ class ActorCritic(nn.Module):
             nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
             nn.tanh,
         ])(feat)
+        # Mean of the Gaussian before squashing: unbounded, since SquashedGaussian's tanh keeps the actions
+        # themselves in [-max_action, max_action], and a tanh here would saturate it at full speed.
         actor_mean = nn.Dense(self.action_dim, kernel_init=orthogonal(0.01), bias_init=constant(0.0))(actor_feat)
-        # Bound the mean to the env's actual action range instead of leaving it
-        # unconstrained: DroneEnv silently clips whatever action it's given, so
-        # an unbounded mean that drifts outside [-max_action, max_action] just
-        # wastes samples on actions that get clipped before reaching the dynamics.
-        actor_mean = self.max_action * nn.tanh(actor_mean)
 
-        # State-dependent std from the same features as the mean, as in earlier automata-conditioned
-        # policies: softplus(tanh(.)) lies in (softplus(-1), softplus(1)) = (0.31, 1.31), in units of
-        # max_action, so exploration noise can neither collapse nor blow up (it starts at ln 2 = 0.69).
+        # State-dependent std from the same features as the mean, bounded in log space: sigmoid(z) slides
+        # log(std) from log(STD_MIN) to log(STD_MAX), so std = STD_MIN^(1-s) * STD_MAX^s
+        # and each unit of z scales it by a roughly constant factor across a 20x range.
+        # The bias makes it start at STD_INIT in every state, since the small kernel starts z near the bias.
         # Built after the mean's output layer so Dense_0..Dense_7 keep their names (export_onnx.py reads them).
-        actor_std = nn.Dense(self.action_dim, kernel_init=orthogonal(0.01), bias_init=constant(0.0))(actor_feat)
-        actor_std = self.max_action * (nn.softplus(nn.tanh(actor_std)) + 1e-3)
+        log_min, log_max = np.log(STD_MIN), np.log(STD_MAX)
+        s_init = (np.log(STD_INIT) - log_min) / (log_max - log_min)
+        z = nn.Dense(
+            self.action_dim, kernel_init=orthogonal(0.01), bias_init=constant(np.log(s_init / (1 - s_init)))
+        )(actor_feat)
+        actor_std = jnp.exp(log_min + (log_max - log_min) * nn.sigmoid(z))
 
         if self.safe:
             # Cost critic for PPO-Lagrangian, stacked as value[..., 1]. Built after
@@ -95,9 +133,10 @@ class ActorCritic(nn.Module):
             value = jnp.squeeze(value, axis=-1)
 
         if self.deterministic:
-            return actor_mean, value
+            # The squashed mean, the same max_action * tanh(Dense_7) that export_onnx.py builds.
+            return self.max_action * jnp.tanh(actor_mean), value
         else:
-            pi = distrax.MultivariateNormalDiag(actor_mean, actor_std)
+            pi = SquashedGaussian(actor_mean, actor_std, self.max_action)
             return pi, value
 
 
@@ -211,9 +250,9 @@ if __name__ == "__main__":
         "GAMMA": args.gamma,
         "GAE_LAMBDA": 0.95,
         "CLIP_EPS": 0.2,
-        # No entropy bonus: ActorCritic's std has a floor, so exploration can't collapse, and a
-        # Gaussian's entropy grows simply by inflating variance, so a bonus would only push the
-        # std toward its ceiling (1.31 * max_action) against the bounded/clipped action space.
+        # No entropy bonus: ActorCritic's std has a floor (STD_MIN), so exploration can't collapse, and a
+        # Gaussian's entropy grows simply by inflating variance, so a bonus would only push the std
+        # toward its ceiling (STD_MAX). The logged entropy is the pre-squash Gaussian's (SquashedGaussian).
         "ENT_COEF": 0.0,
         "VF_COEF": 0.5,
         "MAX_GRAD_NORM": 0.5,
@@ -298,8 +337,8 @@ if __name__ == "__main__":
         f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
-    # State-dependent std: keeps these checkpoints apart from the earlier learned-log-std ones, which
-    # have a different architecture but would otherwise share names (and count as "already trained").
+    # State-dependent std and tanh-squashed actions: keeps these checkpoints apart from the earlier
+    # learned-log-std ones, a different policy that would otherwise share names (and count as "already trained").
     run_tag += "_sdstd"
     run_tag += f"_g{args.gamma}" if args.gamma != 0.99 else ""  # gamma = 0.99 keeps earlier names
     if args.safe:
