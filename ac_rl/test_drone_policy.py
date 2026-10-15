@@ -94,6 +94,11 @@ def make_parser(description, n_default=100, gif_flag=True):
         help="Actions are position deltas instead of velocity commands"
     )
     parser.add_argument(
+        "--use-velocity-filter",
+        action="store_true",
+        help="Velocity commands go through the deployed drone's velocity filter (DroneEnv defaults for its parameters)"
+    )
+    parser.add_argument(
         "--max-steps-in-episode",
         type=int,
         default=500,
@@ -162,6 +167,7 @@ def setup(args):
         max_speed=args.max_speed,
         dt=args.dt,
         use_displacement_action=args.use_displacement_action,
+        use_velocity_filter=args.use_velocity_filter,
         max_steps_in_episode=args.max_steps_in_episode,
     )
 
@@ -197,7 +203,7 @@ def setup(args):
         )
 
     reward_str = "binary" if args.binary_reward else "shaped"
-    action_mode_str = "disp" if args.use_displacement_action else "vel"
+    action_mode_str = "disp" if args.use_displacement_action else "vfilt" if args.use_velocity_filter else "vel"
     run_tag = (
         f"seed_{args.seed}_{sampler_str}_{rad_str}_{reward_str}"
         f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
