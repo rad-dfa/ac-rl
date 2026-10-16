@@ -39,7 +39,8 @@ def make_train(config, env, network):
     # PPO-Lagrangian: maximize P(accept) s.t. P(reject) <= DELTA. The +1/-1 DFA
     # reward is split into reward/cost channels [max(R, 0), max(-R, 0)], the
     # network's value is (..., 2) = [reward value, cost value], and the policy
-    # follows A_r - lam * A_c with lam updated by projected dual ascent.
+    # follows A_r - lam * A_c with lam updated by dual ascent, projected onto
+    # [0, inf) or, if given, LAMBDA_CLIP = (low, high).
     safe = config.get("SAFE", False)
 
     def safe_metrics(log, info, last_returns):
@@ -170,6 +171,7 @@ def make_train(config, env, network):
                 # updated from the rejection rate pooled over the second half of the hold,
                 # i.e. measured on the settled policy (LAMBDA_EVERY = 1: every update).
                 every = config.get("LAMBDA_EVERY", 1)
+                lam_low, lam_high = config.get("LAMBDA_CLIP", (0.0, None))
                 hold_step = hold_step + 1
                 measuring = hold_step > every // 2
                 hold_rejects = hold_rejects + jnp.where(measuring, n_reject, 0.0)
@@ -181,7 +183,7 @@ def make_train(config, env, network):
                 prob_reject = hold_rejects / jnp.maximum(hold_episodes, 1)
                 lam = jnp.where(
                     end_of_hold & (hold_episodes > 0) & (timestep > config.get("LAMBDA_WARMUP", 0)),
-                    jnp.maximum(0.0, lam + config["LAMBDA_LR"] * (prob_reject - config["DELTA"])),
+                    jnp.clip(lam + config["LAMBDA_LR"] * (prob_reject - config["DELTA"]), lam_low, lam_high),
                     lam,
                 )
                 hold_step, hold_rejects, hold_episodes = jax.tree.map(

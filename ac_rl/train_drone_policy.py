@@ -181,6 +181,14 @@ if __name__ == "__main__":
         help="Hold lambda for this many PPO updates, then update it from the P(reject) of the hold's "
              "second half, measured on the policy after it has responded to lambda (default: 1)"
     )
+    parser.add_argument(
+        "--lambda-clip",
+        type=float,
+        nargs=2,
+        metavar=("LOW", "HIGH"),
+        default=None,
+        help="For --safe, keep lambda in [LOW, HIGH] (default: [0, inf))"
+    )
     parser.add_argument("--x-low", type=float, default=-1.0, help="Geofence lower x bound (default: -1.0)")
     parser.add_argument("--x-high", type=float, default=1.0, help="Geofence upper x bound (default: 1.0)")
     parser.add_argument("--y-low", type=float, default=-1.0, help="Geofence lower y bound (default: -1.0)")
@@ -210,6 +218,13 @@ if __name__ == "__main__":
 
     if args.safe and args.binary_reward:
         parser.error("--safe needs the +1/-1 DFA reward to tell rejections from timeouts; drop --binary-reward")
+    if args.lambda_clip:
+        lam_low, lam_high = args.lambda_clip
+        if not 0 <= lam_low <= lam_high:
+            parser.error("--lambda-clip needs 0 <= LOW <= HIGH")
+        # lambda sits at --lambda-init during warm-up (and always with --lambda-lr 0), unclipped.
+        if not lam_low <= args.lambda_init <= lam_high:
+            parser.error(f"--lambda-init {args.lambda_init} is outside --lambda-clip [{lam_low}, {lam_high}]")
 
     config = {
         "LR": 3e-4,
@@ -236,6 +251,8 @@ if __name__ == "__main__":
     if args.safe:
         config.update(SAFE=True, DELTA=args.delta, LAMBDA_LR=args.lambda_lr, LAMBDA_WARMUP=args.lambda_warmup,
                       LAMBDA_INIT=args.lambda_init, LAMBDA_EVERY=args.lambda_every)
+        if args.lambda_clip:
+            config["LAMBDA_CLIP"] = tuple(args.lambda_clip)
 
     key = jax.random.PRNGKey(args.seed)
 
@@ -314,6 +331,7 @@ if __name__ == "__main__":
     if args.safe:
         run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
         run_tag += f"_k{args.lambda_every}" if args.lambda_every > 1 else ""  # k = 1 keeps earlier names
+        run_tag += f"_c{args.lambda_clip[0]}_{args.lambda_clip[1]}" if args.lambda_clip else ""  # no clip keeps earlier names
 
     # run_tag encodes every setting that changes training, so distinct runs never share
     # files; an identical rerun is refused instead of appending to its CSV / overwriting its checkpoint.
