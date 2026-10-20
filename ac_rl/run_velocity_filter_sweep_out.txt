@@ -1,5 +1,5 @@
 nohup: ignoring input
-=== [1/8] sampler=RAD p=0.5 max_size=5 no-filter rad
+=== [1/24] --lambda-init 0.5 --lambda-lr 0.005 sampler=RAD p=0.5 max_size=5 no-filter rad
 usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--sampler SAMPLER] [--max-size MAX_SIZE] [--p P]
                              [--wandb] [--debug] [--log] [--no-rad]
@@ -7,7 +7,8 @@ usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--lambda-lr LAMBDA_LR]
                              [--lambda-warmup LAMBDA_WARMUP]
                              [--lambda-init LAMBDA_INIT]
-                             [--lambda-every LAMBDA_EVERY] [--x-low X_LOW]
+                             [--lambda-every LAMBDA_EVERY]
+                             [--lambda-clip LOW HIGH] [--x-low X_LOW]
                              [--x-high X_HIGH] [--y-low Y_LOW]
                              [--y-high Y_HIGH] [--z-low Z_LOW]
                              [--z-high Z_HIGH] [--max-speed MAX_SPEED]
@@ -17,7 +18,7 @@ usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--gamma GAMMA]
 train_drone_policy.py: error: already trained: storage/policy_params_drone_seed_42_RAD_5_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.msgpack (delete it or use another --save-dir)
 --- already trained, skipping
-=== [2/8] sampler=RAD p=0.5 max_size=5 no-filter --no-rad
+=== [2/24] --lambda-init 0.5 --lambda-lr 0.005 sampler=RAD p=0.5 max_size=5 no-filter --no-rad
 usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--sampler SAMPLER] [--max-size MAX_SIZE] [--p P]
                              [--wandb] [--debug] [--log] [--no-rad]
@@ -25,7 +26,8 @@ usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--lambda-lr LAMBDA_LR]
                              [--lambda-warmup LAMBDA_WARMUP]
                              [--lambda-init LAMBDA_INIT]
-                             [--lambda-every LAMBDA_EVERY] [--x-low X_LOW]
+                             [--lambda-every LAMBDA_EVERY]
+                             [--lambda-clip LOW HIGH] [--x-low X_LOW]
                              [--x-high X_HIGH] [--y-low Y_LOW]
                              [--y-high Y_HIGH] [--z-low Z_LOW]
                              [--z-high Z_HIGH] [--max-speed MAX_SPEED]
@@ -35,53 +37,7 @@ usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--gamma GAMMA]
 train_drone_policy.py: error: already trained: storage/policy_params_drone_seed_42_RAD_5_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.msgpack (delete it or use another --save-dir)
 --- already trained, skipping
-=== [3/8] sampler=RAD p=0.5 max_size=5 --use-velocity-filter rad
-LR             : 0.0003
-NUM_ENVS       : 16
-NUM_STEPS      : 512
-TOTAL_TIMESTEPS: 10000000.0
-UPDATE_EPOCHS  : 4
-NUM_MINIBATCHES: 16
-GAMMA          : 0.99
-GAE_LAMBDA     : 0.95
-CLIP_EPS       : 0.2
-ENT_COEF       : 0.0
-VF_COEF        : 0.5
-MAX_GRAD_NORM  : 0.5
-ANNEAL_LR      : False
-DEBUG          : False
-WANDB          : False
-SAFE           : True
-DELTA          : 0.05
-LAMBDA_LR      : 0.005
-LAMBDA_WARMUP  : 0.0
-LAMBDA_INIT    : 0.5
-LAMBDA_EVERY   : 1
-LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
-=== [4/8] sampler=RAD p=0.5 max_size=5 --use-velocity-filter --no-rad
-LR             : 0.0003
-NUM_ENVS       : 16
-NUM_STEPS      : 512
-TOTAL_TIMESTEPS: 10000000.0
-UPDATE_EPOCHS  : 4
-NUM_MINIBATCHES: 16
-GAMMA          : 0.99
-GAE_LAMBDA     : 0.95
-CLIP_EPS       : 0.2
-ENT_COEF       : 0.0
-VF_COEF        : 0.5
-MAX_GRAD_NORM  : 0.5
-ANNEAL_LR      : False
-DEBUG          : False
-WANDB          : False
-SAFE           : True
-DELTA          : 0.05
-LAMBDA_LR      : 0.005
-LAMBDA_WARMUP  : 0.0
-LAMBDA_INIT    : 0.5
-LAMBDA_EVERY   : 1
-LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
-=== [5/8] sampler=RAD p=0.5 max_size=10 no-filter rad
+=== [3/24] --lambda-init 0.5 --lambda-lr 0.005 sampler=RAD p=0.5 max_size=5 --use-velocity-filter rad
 usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--sampler SAMPLER] [--max-size MAX_SIZE] [--p P]
                              [--wandb] [--debug] [--log] [--no-rad]
@@ -89,7 +45,46 @@ usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--lambda-lr LAMBDA_LR]
                              [--lambda-warmup LAMBDA_WARMUP]
                              [--lambda-init LAMBDA_INIT]
-                             [--lambda-every LAMBDA_EVERY] [--x-low X_LOW]
+                             [--lambda-every LAMBDA_EVERY]
+                             [--lambda-clip LOW HIGH] [--x-low X_LOW]
+                             [--x-high X_HIGH] [--y-low Y_LOW]
+                             [--y-high Y_HIGH] [--z-low Z_LOW]
+                             [--z-high Z_HIGH] [--max-speed MAX_SPEED]
+                             [--dt DT] [--use-displacement-action]
+                             [--use-velocity-filter]
+                             [--max-steps-in-episode MAX_STEPS_IN_EPISODE]
+                             [--gamma GAMMA]
+train_drone_policy.py: error: already trained: storage/policy_params_drone_seed_42_RAD_5_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.005_w0_l0.5.msgpack (delete it or use another --save-dir)
+--- already trained, skipping
+=== [4/24] --lambda-init 0.5 --lambda-lr 0.005 sampler=RAD p=0.5 max_size=5 --use-velocity-filter --no-rad
+usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
+                             [--sampler SAMPLER] [--max-size MAX_SIZE] [--p P]
+                             [--wandb] [--debug] [--log] [--no-rad]
+                             [--binary-reward] [--safe] [--delta DELTA]
+                             [--lambda-lr LAMBDA_LR]
+                             [--lambda-warmup LAMBDA_WARMUP]
+                             [--lambda-init LAMBDA_INIT]
+                             [--lambda-every LAMBDA_EVERY]
+                             [--lambda-clip LOW HIGH] [--x-low X_LOW]
+                             [--x-high X_HIGH] [--y-low Y_LOW]
+                             [--y-high Y_HIGH] [--z-low Z_LOW]
+                             [--z-high Z_HIGH] [--max-speed MAX_SPEED]
+                             [--dt DT] [--use-displacement-action]
+                             [--use-velocity-filter]
+                             [--max-steps-in-episode MAX_STEPS_IN_EPISODE]
+                             [--gamma GAMMA]
+train_drone_policy.py: error: already trained: storage/policy_params_drone_seed_42_RAD_5_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.005_w0_l0.5.msgpack (delete it or use another --save-dir)
+--- already trained, skipping
+=== [5/24] --lambda-init 0.5 --lambda-lr 0.005 sampler=RAD p=0.5 max_size=10 no-filter rad
+usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
+                             [--sampler SAMPLER] [--max-size MAX_SIZE] [--p P]
+                             [--wandb] [--debug] [--log] [--no-rad]
+                             [--binary-reward] [--safe] [--delta DELTA]
+                             [--lambda-lr LAMBDA_LR]
+                             [--lambda-warmup LAMBDA_WARMUP]
+                             [--lambda-init LAMBDA_INIT]
+                             [--lambda-every LAMBDA_EVERY]
+                             [--lambda-clip LOW HIGH] [--x-low X_LOW]
                              [--x-high X_HIGH] [--y-low Y_LOW]
                              [--y-high Y_HIGH] [--z-low Z_LOW]
                              [--z-high Z_HIGH] [--max-speed MAX_SPEED]
@@ -99,7 +94,7 @@ usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--gamma GAMMA]
 train_drone_policy.py: error: already trained: storage/policy_params_drone_seed_42_RAD_10_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.msgpack (delete it or use another --save-dir)
 --- already trained, skipping
-=== [6/8] sampler=RAD p=0.5 max_size=10 no-filter --no-rad
+=== [6/24] --lambda-init 0.5 --lambda-lr 0.005 sampler=RAD p=0.5 max_size=10 no-filter --no-rad
 usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--sampler SAMPLER] [--max-size MAX_SIZE] [--p P]
                              [--wandb] [--debug] [--log] [--no-rad]
@@ -107,7 +102,8 @@ usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--lambda-lr LAMBDA_LR]
                              [--lambda-warmup LAMBDA_WARMUP]
                              [--lambda-init LAMBDA_INIT]
-                             [--lambda-every LAMBDA_EVERY] [--x-low X_LOW]
+                             [--lambda-every LAMBDA_EVERY]
+                             [--lambda-clip LOW HIGH] [--x-low X_LOW]
                              [--x-high X_HIGH] [--y-low Y_LOW]
                              [--y-high Y_HIGH] [--z-low Z_LOW]
                              [--z-high Z_HIGH] [--max-speed MAX_SPEED]
@@ -117,7 +113,45 @@ usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
                              [--gamma GAMMA]
 train_drone_policy.py: error: already trained: storage/policy_params_drone_seed_42_RAD_10_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5.msgpack (delete it or use another --save-dir)
 --- already trained, skipping
-=== [7/8] sampler=RAD p=0.5 max_size=10 --use-velocity-filter rad
+=== [7/24] --lambda-init 0.5 --lambda-lr 0.005 sampler=RAD p=0.5 max_size=10 --use-velocity-filter rad
+usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
+                             [--sampler SAMPLER] [--max-size MAX_SIZE] [--p P]
+                             [--wandb] [--debug] [--log] [--no-rad]
+                             [--binary-reward] [--safe] [--delta DELTA]
+                             [--lambda-lr LAMBDA_LR]
+                             [--lambda-warmup LAMBDA_WARMUP]
+                             [--lambda-init LAMBDA_INIT]
+                             [--lambda-every LAMBDA_EVERY]
+                             [--lambda-clip LOW HIGH] [--x-low X_LOW]
+                             [--x-high X_HIGH] [--y-low Y_LOW]
+                             [--y-high Y_HIGH] [--z-low Z_LOW]
+                             [--z-high Z_HIGH] [--max-speed MAX_SPEED]
+                             [--dt DT] [--use-displacement-action]
+                             [--use-velocity-filter]
+                             [--max-steps-in-episode MAX_STEPS_IN_EPISODE]
+                             [--gamma GAMMA]
+train_drone_policy.py: error: already trained: storage/policy_params_drone_seed_42_RAD_10_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.005_w0_l0.5.msgpack (delete it or use another --save-dir)
+--- already trained, skipping
+=== [8/24] --lambda-init 0.5 --lambda-lr 0.005 sampler=RAD p=0.5 max_size=10 --use-velocity-filter --no-rad
+usage: train_drone_policy.py [-h] [--seed SEED] [--save-dir SAVE_DIR]
+                             [--sampler SAMPLER] [--max-size MAX_SIZE] [--p P]
+                             [--wandb] [--debug] [--log] [--no-rad]
+                             [--binary-reward] [--safe] [--delta DELTA]
+                             [--lambda-lr LAMBDA_LR]
+                             [--lambda-warmup LAMBDA_WARMUP]
+                             [--lambda-init LAMBDA_INIT]
+                             [--lambda-every LAMBDA_EVERY]
+                             [--lambda-clip LOW HIGH] [--x-low X_LOW]
+                             [--x-high X_HIGH] [--y-low Y_LOW]
+                             [--y-high Y_HIGH] [--z-low Z_LOW]
+                             [--z-high Z_HIGH] [--max-speed MAX_SPEED]
+                             [--dt DT] [--use-displacement-action]
+                             [--use-velocity-filter]
+                             [--max-steps-in-episode MAX_STEPS_IN_EPISODE]
+                             [--gamma GAMMA]
+train_drone_policy.py: error: already trained: storage/policy_params_drone_seed_42_RAD_10_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.005_w0_l0.5.msgpack (delete it or use another --save-dir)
+--- already trained, skipping
+=== [9/24] --lambda-init 0 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=5 no-filter rad
 LR             : 0.0003
 NUM_ENVS       : 16
 NUM_STEPS      : 512
@@ -135,12 +169,13 @@ DEBUG          : False
 WANDB          : False
 SAFE           : True
 DELTA          : 0.05
-LAMBDA_LR      : 0.005
+LAMBDA_LR      : 0.05
 LAMBDA_WARMUP  : 0.0
-LAMBDA_INIT    : 0.5
+LAMBDA_INIT    : 0.0
 LAMBDA_EVERY   : 1
-LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
-=== [8/8] sampler=RAD p=0.5 max_size=10 --use-velocity-filter --no-rad
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.05_w0_l0.0_c0.0_1.0.csv
+=== [10/24] --lambda-init 0 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=5 no-filter --no-rad
 LR             : 0.0003
 NUM_ENVS       : 16
 NUM_STEPS      : 512
@@ -158,10 +193,347 @@ DEBUG          : False
 WANDB          : False
 SAFE           : True
 DELTA          : 0.05
-LAMBDA_LR      : 0.005
+LAMBDA_LR      : 0.05
 LAMBDA_WARMUP  : 0.0
-LAMBDA_INIT    : 0.5
+LAMBDA_INIT    : 0.0
 LAMBDA_EVERY   : 1
-LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.005_w0_l0.5.csv
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.05_w0_l0.0_c0.0_1.0.csv
+=== [11/24] --lambda-init 0 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=5 --use-velocity-filter rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 0.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.05_w0_l0.0_c0.0_1.0.csv
+=== [12/24] --lambda-init 0 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=5 --use-velocity-filter --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 0.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.05_w0_l0.0_c0.0_1.0.csv
+=== [13/24] --lambda-init 0 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=10 no-filter rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 0.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.05_w0_l0.0_c0.0_1.0.csv
+=== [14/24] --lambda-init 0 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=10 no-filter --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 0.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.05_w0_l0.0_c0.0_1.0.csv
+=== [15/24] --lambda-init 0 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=10 --use-velocity-filter rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 0.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.05_w0_l0.0_c0.0_1.0.csv
+=== [16/24] --lambda-init 0 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=10 --use-velocity-filter --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 0.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.05_w0_l0.0_c0.0_1.0.csv
+=== [17/24] --lambda-init 1 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=5 no-filter rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 1.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0.csv
+=== [18/24] --lambda-init 1 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=5 no-filter --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 1.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0.csv
+=== [19/24] --lambda-init 1 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=5 --use-velocity-filter rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 1.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0.csv
+=== [20/24] --lambda-init 1 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=5 --use-velocity-filter --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 1.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_5_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0.csv
+=== [21/24] --lambda-init 1 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=10 no-filter rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 1.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0.csv
+=== [22/24] --lambda-init 1 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=10 no-filter --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 1.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0.csv
+=== [23/24] --lambda-init 1 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=10 --use-velocity-filter rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 1.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0.csv
+=== [24/24] --lambda-init 1 --lambda-lr 0.05 --lambda-clip 0 1 sampler=RAD p=0.5 max_size=10 --use-velocity-filter --no-rad
+LR             : 0.0003
+NUM_ENVS       : 16
+NUM_STEPS      : 512
+TOTAL_TIMESTEPS: 10000000.0
+UPDATE_EPOCHS  : 4
+NUM_MINIBATCHES: 16
+GAMMA          : 0.99
+GAE_LAMBDA     : 0.95
+CLIP_EPS       : 0.2
+ENT_COEF       : 0.0
+VF_COEF        : 0.5
+MAX_GRAD_NORM  : 0.5
+ANNEAL_LR      : False
+DEBUG          : False
+WANDB          : False
+SAFE           : True
+DELTA          : 0.05
+LAMBDA_LR      : 0.05
+LAMBDA_WARMUP  : 0.0
+LAMBDA_INIT    : 1.0
+LAMBDA_EVERY   : 1
+LAMBDA_CLIP    : (0.0, 1.0)
+LOG            : storage/log_drone_seed_42_RAD_10_10_p0.5_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0.csv
 
-Trained: 4, skipped (already trained): 4, failed: 0
+Trained: 16, skipped (already trained): 8, failed: 0
