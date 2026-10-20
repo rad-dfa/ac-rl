@@ -213,7 +213,7 @@ if __name__ == "__main__":
         default=500,
         help="Episode horizon (default: 500)"
     )
-    parser.add_argument("--gamma", type=float, default=0.99, help="PPO discount factor, for rewards and --safe costs (default: 0.99)")
+    parser.add_argument("--gamma", type=float, default=0.999, help="PPO discount factor, for rewards and --safe costs (default: 0.999)")
     args = parser.parse_args()
 
     if args.safe and args.binary_reward:
@@ -380,9 +380,11 @@ if __name__ == "__main__":
     train_jit = jax.jit(make_train(config, env, network))
     out = train_jit(key)
 
-    trained_params = out["runner_state"][0].params
+    # train_jit returns before training finishes (JAX dispatches asynchronously); serializing waits for it. Only then
+    # create the checkpoint, so an interrupted run never leaves an empty one that counts as "already trained".
+    ckpt_bytes = serialization.to_bytes(out["runner_state"][0].params)
     with open(ckpt_path, "wb") as f:
-        f.write(serialization.to_bytes(trained_params))
+        f.write(ckpt_bytes)
 
     if config["WANDB"]:
         wandb.finish()
