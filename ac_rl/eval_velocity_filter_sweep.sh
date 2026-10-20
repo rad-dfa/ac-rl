@@ -58,7 +58,8 @@ for schedule in "${lambda_schedules[@]}"; do
                         continue
                     fi
 
-                    args=(--model-path "$ckpt" --seed 42 --sampler RAD --max-size "$max_size" --p 0.5
+                    # The sweep trained with gamma 0.99 (the default then; test_drone_policy.py's is now 0.999).
+                    args=(--model-path "$ckpt" --seed 42 --sampler RAD --max-size "$max_size" --p 0.5 --gamma 0.99
                           --safe --delta 0.05 "${lambda_args[@]}" --n 1000 --batch-size 250)
                     for flag in "$filter_flag" "$rad_flag" "$action_flag"; do
                         if [ -n "$flag" ]; then
