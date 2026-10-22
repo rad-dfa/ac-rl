@@ -40,7 +40,7 @@ from test_drone_policy import run_episodes
 
 ENV_TAG = "x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1"
 SAFE_TAG = "steps500_g0.999_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0"
-# run_final.sh's runs (lambda_0 = 1, clip [0, 1], gamma 0.999) with max size 5, p 0.5 and the pretrained RAD encoder.
+# train_drone_policies.sh's runs (lambda_0 = 1, clip [0, 1], gamma 0.999) with max size 5, p 0.5 and the pretrained RAD encoder.
 POLICIES = {
     "rad_no_filter": f"storage/policy_params_drone_seed_42_RAD_5_10_p0.5_rad_shaped_{ENV_TAG}_vel_{SAFE_TAG}.msgpack",
     "rad_velocity_filter":

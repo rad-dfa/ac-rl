@@ -6,7 +6,7 @@ always generated): rolls out --n episodes on the DFA, prints their stats, and an
 the one picked by --random (default) / --max / --min discounted return.
 
 To try another task, edit DFA_NAME / START / ACCEPTING / TRANSITIONS. DroneEnv's
-tokens are 0..4 (see DroneEnv.label_regions and the gif legend for their locations).
+tokens are 0..9 (see DroneEnv.label_regions and the gif legend for their locations).
 """
 import jax
 import jax.numpy as jnp

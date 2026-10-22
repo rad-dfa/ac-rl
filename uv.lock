@@ -496,7 +496,7 @@ provides-extras = ["cuda"]
 
 [[package]]
 name = "dfax"
-version = "0.1.19"
+version = "0.1.20"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chex" },
@@ -507,9 +507,9 @@ dependencies = [
     { name = "matplotlib" },
     { name = "networkx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/74/48/c41edb1b59806519b2b6c2492b195ca04b6bb2c1e7c1e29f5ca644ec8e54/dfax-0.1.19.tar.gz", hash = "sha256:cd9b1d2dfe5367a27bda3af4c3ad72b64c0184c4442bbde37a131fde00ca8c93", size = 694349, upload-time = "2026-05-20T16:05:03.475Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/63/ff/5f432412a78b35a29be6b95dc66cc449d841f4657c11b94913e10883961c/dfax-0.1.20.tar.gz", hash = "sha256:ab8f51d6cd2c3f77c56cd710dc3ae4e39d79f569a2f64c6aace043991b7c1db2", size = 708576, upload-time = "2026-10-22T21:26:29.18Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d4/98/a2651200ca3473c0d320dde86bd79fe7dbcf04fca5aa6a4398ef2b09d634/dfax-0.1.19-py3-none-any.whl", hash = "sha256:65f9d99a9fc336611db2581ea7c3e649910e8c34e2402fd8d5ed4ef7cb8b69bd", size = 600189, upload-time = "2026-05-20T16:04:49.892Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/0d/82355be1173026b43f00a042d1982a28191781fd6bd04ad414bae6c7ce49/dfax-0.1.20-py3-none-any.whl", hash = "sha256:f497c7f5193ea384d9b4a534a291b315172e995eb30ca97b5aca96ff824ca2fb", size = 601583, upload-time = "2026-10-22T21:26:27.538Z" },
 ]
 
 [package.optional-dependencies]
@@ -2070,8 +2070,8 @@ dependencies = [
 requires-dist = [
     { name = "dfa-gym", specifier = ">=0.2.18" },
     { name = "dfa-gym", extras = ["cuda"], marker = "extra == 'cuda'", specifier = ">=0.2.18" },
-    { name = "dfax", specifier = ">=0.1.19" },
-    { name = "dfax", extras = ["cuda"], marker = "extra == 'cuda'", specifier = ">=0.1.19" },
+    { name = "dfax", specifier = ">=0.1.20" },
+    { name = "dfax", extras = ["cuda"], marker = "extra == 'cuda'", specifier = ">=0.1.20" },
     { name = "distrax", specifier = "==0.1.5" },
     { name = "jraph", specifier = ">=0.0.6.dev0" },
     { name = "pandas", specifier = ">=1.5.0" },
@@ -2104,8 +2104,8 @@ cuda = [
 requires-dist = [
     { name = "dfa-gym", editable = "../dfa-gym" },
     { name = "dfa-gym", extras = ["cuda"], marker = "extra == 'cuda'", editable = "../dfa-gym" },
-    { name = "dfax", specifier = ">=0.1.13" },
-    { name = "dfax", extras = ["cuda"], marker = "extra == 'cuda'", specifier = ">=0.1.13" },
+    { name = "dfax", specifier = ">=0.1.20" },
+    { name = "dfax", extras = ["cuda"], marker = "extra == 'cuda'", specifier = ">=0.1.20" },
     { name = "distrax", specifier = "==0.1.5" },
     { name = "onnx", specifier = ">=1.23.0" },
     { name = "onnxruntime", specifier = "<1.21" },

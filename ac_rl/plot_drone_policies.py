@@ -1,13 +1,14 @@
-"""Plots run_encoder_sweep.sh results: RAD vs no-RAD drone policies for each pretrained-encoder config.
+"""Plots RAD vs no-RAD drone policies (train_drone_policies.sh) for each sampler config.
 
 Reads the train_drone_policy.py --log CSVs in --storage/logs whose run settings match --tag and writes, under --out:
   <metric>.pdf             one panel per config (rows: sampler; columns: max size x p), RAD vs no-RAD in each
   <config>/<metric>.pdf    the same comparison for a single config
   summary.csv              key metrics averaged over the last --last updates, RAD and no-RAD side by side
-A log without a checkpoint (interrupted or still running) is plotted up to where it stops and marked incomplete;
-its config's summary compares both runs at the last step they share.
+Without --tag, it plots train_drone_policies.sh's runs without and with the velocity filter into --out/vel and
+--out/vfilt. A log without a checkpoint (interrupted or still running) is plotted up to where it stops and marked
+incomplete; its config's summary compares both runs at the last step they share.
 
-  uv run plot_encoder_sweep.py
+  uv run plot_drone_policies.py
 """
 import os
 import re
@@ -19,13 +20,17 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-SWEEP_TAG = "shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_safe_d0.05_lr0.005_w0_l0.5"
+# Run settings of train_drone_policies.sh's runs without and with the velocity filter, by output subdirectory.
+DEFAULT_TAGS = {
+    mode: f"shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_{mode}_steps500_g0.999_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0"
+    for mode in ("vel", "vfilt")
+}
 LOG_RE = re.compile(
     r"^log_drone_seed_(?P<seed>\d+)_(?P<sampler>Reach|ReachAvoid|RAD)_(?P<max_size>\d+)_(?P<n_tokens>\d+)"
     r"(?:_p(?P<p>[^_]+))?_(?P<rad>no_rad|rad)_(?P<tag>.+)\.csv$"
 )
 
-# Grid layout, in run_encoder_sweep.sh order (Reach, no longer swept, last): rows are samplers, columns are (max size, p).
+# Grid layout: rows are samplers, columns are (max size, p). Rows and columns without runs are dropped.
 SAMPLERS = ["ReachAvoid", "RAD", "Reach"]
 COLUMNS = [(10, "0.5"), (10, "None"), (5, "0.5"), (5, "None")]
 
@@ -224,37 +229,47 @@ def summarize(configs, last):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot RAD vs no-RAD drone policies from run_encoder_sweep.sh")
-    parser.add_argument("--storage", default="storage", help="--save-dir of the sweep; its CSV logs are read from {storage}/logs (default: storage)")
-    parser.add_argument("--out", default="storage/plots/encoder_sweep",
-                        help="Output directory (default: storage/plots/encoder_sweep)")
-    parser.add_argument("--tag", default=SWEEP_TAG,
-                        help="Run settings after the rad/no_rad part of the log name (default: run_encoder_sweep.sh's)")
+    parser = argparse.ArgumentParser(description="Plot RAD vs no-RAD drone policies from train_drone_policies.sh")
+    parser.add_argument("--storage", default="storage", help="--save-dir of the runs; their CSV logs are read from {storage}/logs (default: storage)")
+    parser.add_argument("--out", default="storage/plots/drone_policies",
+                        help="Output directory (default: storage/plots/drone_policies)")
+    parser.add_argument("--tag", default=None,
+                        help="Run settings after the rad/no_rad part of the log name (default: train_drone_policies.sh's "
+                             "without and with the velocity filter, into --out/vel and --out/vfilt)")
     parser.add_argument("--last", type=int, default=50, help="Updates averaged in summary.csv (default: 50)")
     parser.add_argument("--format", default="pdf", help="Figure file format (default: pdf)")
     args = parser.parse_args()
 
-    configs = load_runs(args.storage, args.tag)
-    if not configs:
-        parser.error(f"no logs in {args.storage} match --tag {args.tag}")
-    delta = re.search(r"_safe_d([\d.]+)", args.tag)
-    delta = float(delta[1]) if delta else None
-    metrics = [c for c in next(iter(next(iter(configs.values())).values()))["df"].columns.get_level_values(0).unique()]
+    tags = {"": args.tag} if args.tag else DEFAULT_TAGS
+    n_plotted = 0
+    for subdir, tag in tags.items():
+        out = os.path.join(args.out, subdir)
+        configs = load_runs(args.storage, tag)
+        if not configs:
+            print(f"No logs in {args.storage} match --tag {tag}, skipping")
+            continue
+        delta = re.search(r"_safe_d([\d.]+)", tag)
+        delta = float(delta[1]) if delta else None
+        metrics = [c for c in next(iter(next(iter(configs.values())).values()))["df"].columns.get_level_values(0).unique()]
 
-    os.makedirs(args.out, exist_ok=True)
-    for metric in metrics:
-        plot_grid(configs, metric, delta, os.path.join(args.out, f"{metric}.{args.format}"))
-    for config, runs in configs.items():
-        out_dir = os.path.join(args.out, config_dir(config))
-        os.makedirs(out_dir, exist_ok=True)
+        os.makedirs(out, exist_ok=True)
         for metric in metrics:
-            plot_single(config, runs, metric, delta, os.path.join(out_dir, f"{metric}.{args.format}"))
+            plot_grid(configs, metric, delta, os.path.join(out, f"{metric}.{args.format}"))
+        for config, runs in configs.items():
+            out_dir = os.path.join(out, config_dir(config))
+            os.makedirs(out_dir, exist_ok=True)
+            for metric in metrics:
+                plot_single(config, runs, metric, delta, os.path.join(out_dir, f"{metric}.{args.format}"))
 
-    summary = summarize(configs, args.last)
-    summary.to_csv(os.path.join(args.out, "summary.csv"), index=False)
-    with pd.option_context("display.width", 200, "display.max_columns", None, "display.float_format", "{:.3f}".format):
-        print(summary.to_string(index=False))
-    print(f"\n{len(configs)} configs, {len(metrics)} metrics -> {args.out}")
+        summary = summarize(configs, args.last)
+        summary.to_csv(os.path.join(out, "summary.csv"), index=False)
+        print(tag)
+        with pd.option_context("display.width", 200, "display.max_columns", None, "display.float_format", "{:.3f}".format):
+            print(summary.to_string(index=False))
+        print(f"\n{len(configs)} configs, {len(metrics)} metrics -> {out}\n")
+        n_plotted += 1
+    if not n_plotted:
+        parser.error(f"no logs in {args.storage} match any of: {', '.join(tags.values())}")
 
 
 if __name__ == "__main__":

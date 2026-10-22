@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# Final RAD vs no-RAD drone policies: RAD sampler with each max DFA size and p, with and without DroneEnv's velocity
-# filter (--use-velocity-filter), with and without --no-rad (2 x 2 x 2 x 2 = 16 runs per seed). Every run is
-# PPO-Lagrangian (--safe) with delta 0.05 and lambda starting at 1, clipped to [0, 1], lr 0.05 (as in
-# run_velocity_filter_sweep.sh's clipped schedules), no warm-up, and gamma 0.999 for both rewards and costs.
-# Add seeds to `seeds` below for more runs per config.
+# Trains the RAD vs no-RAD drone policies: RAD sampler with each max DFA size and p, with and without DroneEnv's
+# velocity filter (--use-velocity-filter), with and without --no-rad (2 x 2 x 2 x 2 = 16 runs per seed). Every run
+# is PPO-Lagrangian (--safe) with delta 0.05 and lambda starting at 1, clipped to [0, 1], lr 0.05, no warm-up, and
+# gamma 0.999 for both rewards and costs. Add seeds to `seeds` below for more runs per config.
 # Arguments are passed on to every train_drone_policy.py call, e.g.
 #
-#   ./run_final.sh --wandb
-#   ./run_final.sh --save-dir storage/final
+#   ./train_drone_policies.sh --wandb
+#   ./train_drone_policies.sh --save-dir storage/final
 #
-# Runs that already have a checkpoint are skipped (train_drone_policy.py refuses to overwrite them), so
-# re-running the script after an interruption resumes the sweep. A run interrupted mid-training leaves a log
-# without a checkpoint; it is reported as failed until that log is deleted.
+# Checkpoints go to the save dir (default storage) and CSV logs to its logs/ subdir. Runs that already have a
+# checkpoint are skipped (train_drone_policy.py refuses to overwrite them), so re-running the script after an
+# interruption resumes training. A run interrupted mid-training leaves a log without a checkpoint; it is reported
+# as failed until that log is deleted.
 #
-# Plot each filter setting with plot_encoder_sweep.py (vel = no filter, vfilt = filter):
+# Then plot RAD vs no-RAD for each filter setting, and package the max size 5, p 0.5 RAD policies for handoff:
 #
-#   uv run plot_encoder_sweep.py --out storage/plots/final/vfilt \
-#       --tag shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0
+#   uv run plot_drone_policies.py
+#   uv run export_drone_bundle.py
 
 set -o pipefail
 cd "$(dirname "$0")"
