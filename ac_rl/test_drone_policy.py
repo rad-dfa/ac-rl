@@ -11,7 +11,7 @@ from dfa_gym import DroneEnv, DFAWrapper, animate_drone_trace
 from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
 
 # Default of train_drone_policy.py's --gamma (used by LogWrapper for disc_return).
-GAMMA = 0.99
+GAMMA = 0.999
 
 
 def make_parser(description, n_default=100, gif_flag=True):
@@ -211,7 +211,7 @@ def setup(args):
         f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
         f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
     )
-    run_tag += f"_g{args.gamma}" if args.gamma != GAMMA else ""
+    run_tag += f"_g{args.gamma}" if args.gamma != 0.99 else ""  # as in train_drone_policy.py: 0.99 keeps earlier names
     if args.safe:
         run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
         run_tag += f"_k{args.lambda_every}" if args.lambda_every > 1 else ""
