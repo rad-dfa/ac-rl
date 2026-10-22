@@ -142,7 +142,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--log",
         action="store_true",
-        help="Log to a csv file in the given save directory"
+        help="Log to a csv file in {save-dir}/logs"
     )
     parser.add_argument(
         "--no-rad",
@@ -259,7 +259,9 @@ if __name__ == "__main__":
             seed=args.seed
         )
 
-    config["LOG"] = f"{args.save_dir}/log_seed_{args.seed}_{sampler_str}_{rad_str}.csv" if args.log else None
+    config["LOG"] = f"{args.save_dir}/logs/log_seed_{args.seed}_{sampler_str}_{rad_str}.csv" if args.log else None
+    if config["LOG"]:
+        os.makedirs(f"{args.save_dir}/logs", exist_ok=True)
 
     network = ActorCritic(
         action_dim=env.action_space(env.agents[0]).n,

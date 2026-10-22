@@ -1,6 +1,6 @@
 """Plots run_encoder_sweep.sh results: RAD vs no-RAD drone policies for each pretrained-encoder config.
 
-Reads the train_drone_policy.py --log CSVs in --storage whose run settings match --tag and writes, under --out:
+Reads the train_drone_policy.py --log CSVs in --storage/logs whose run settings match --tag and writes, under --out:
   <metric>.pdf             one panel per config (rows: sampler; columns: max size x p), RAD vs no-RAD in each
   <config>/<metric>.pdf    the same comparison for a single config
   summary.csv              key metrics averaged over the last --last updates, RAD and no-RAD side by side
@@ -69,7 +69,7 @@ plt.rcParams.update({
 def load_runs(storage, tag):
     """{(sampler, max_size, p): {"rad"/"no_rad": {"df": per-timestep mean/std over seeds, "seeds", "incomplete"}}}"""
     grouped = {}
-    for path in sorted(glob.glob(os.path.join(storage, "log_drone_*.csv"))):
+    for path in sorted(glob.glob(os.path.join(storage, "logs", "log_drone_*.csv"))):
         name = os.path.basename(path)
         m = LOG_RE.match(name)
         if m is None or m["tag"] != tag:
@@ -147,12 +147,14 @@ def clip_rate_axis(ax, metric):
 
 
 def plot_grid(configs, metric, delta, path):
+    # Only rows and columns with at least one run, e.g. a max-size-5-only sweep gets no max-size-10 column.
     samplers = [s for s in SAMPLERS if any(c[0] == s for c in configs)]
-    fig, axes = plt.subplots(len(samplers), len(COLUMNS), figsize=(3.4 * len(COLUMNS), 2.6 * len(samplers) + 0.9),
+    columns = [col for col in COLUMNS if any(c[1:] == col for c in configs)]
+    fig, axes = plt.subplots(len(samplers), len(columns), figsize=(3.4 * len(columns), 2.6 * len(samplers) + 0.9),
                              sharex=True, sharey=metric not in UNSHARED, squeeze=False)
     notes = []
     for row, sampler in enumerate(samplers):
-        for col, (max_size, p) in enumerate(COLUMNS):
+        for col, (max_size, p) in enumerate(columns):
             ax, config = axes[row, col], (sampler, max_size, p)
             title = config_title(config)
             if config in configs:
@@ -174,13 +176,16 @@ def plot_grid(configs, metric, delta, path):
     handles = [plt.Line2D([], [], color=COLORS[m], linewidth=1.5, label=METHODS[m]) for m in METHODS]
     if metric == "prob_reject" and delta is not None:
         handles.append(delta_handle(delta))
-    fig.legend(handles=handles, loc="upper right", ncol=len(handles), bbox_to_anchor=(0.995, 0.995))
-    fig.suptitle(f"{LABELS.get(metric, metric)}: RAD vs no-RAD embeddings", x=0.01, ha="left", fontsize=12)
+    # Title, then the legend on its own line below it, so the two never collide however narrow the grid is.
+    height = fig.get_figheight()
+    fig.suptitle(f"{LABELS.get(metric, metric)}: RAD vs no-RAD embeddings", x=0.01, y=1 - 0.1 / height,
+                 ha="left", va="top", fontsize=12)
+    fig.legend(handles=handles, loc="upper left", ncol=len(handles), bbox_to_anchor=(0.005, 1 - 0.36 / height))
     bottom = 0
     if notes:
         fig.text(0.01, 0.01, "\n".join(notes), fontsize=8, color=INK_2, va="bottom")
-        bottom = (0.15 + 0.15 * len(notes)) / fig.get_figheight()
-    fig.tight_layout(rect=(0, bottom, 1, 1 - 0.3 / fig.get_figheight()))
+        bottom = (0.15 + 0.15 * len(notes)) / height
+    fig.tight_layout(rect=(0, bottom, 1, 1 - 0.65 / height))
     fig.savefig(path)
     plt.close(fig)
 
@@ -220,7 +225,7 @@ def summarize(configs, last):
 
 def main():
     parser = argparse.ArgumentParser(description="Plot RAD vs no-RAD drone policies from run_encoder_sweep.sh")
-    parser.add_argument("--storage", default="storage", help="Directory with the sweep's CSV logs (default: storage)")
+    parser.add_argument("--storage", default="storage", help="--save-dir of the sweep; its CSV logs are read from {storage}/logs (default: storage)")
     parser.add_argument("--out", default="storage/plots/encoder_sweep",
                         help="Output directory (default: storage/plots/encoder_sweep)")
     parser.add_argument("--tag", default=SWEEP_TAG,

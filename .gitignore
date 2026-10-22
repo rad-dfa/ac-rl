@@ -212,3 +212,5 @@ __marimo__/
 # repo
 wandb
 
+# Old-env (sticky DroneEnv labels) storage archive; too large for GitHub
+ac_rl/storage_sticky_labels.zip

@@ -8,8 +8,8 @@ import re
 from collections import defaultdict
 
 parser = argparse.ArgumentParser(description="Plot AC-RL training curves from saved CSV logs.")
-parser.add_argument("exp_name", nargs="?", help="Experiment name prefix (storage/{exp_name}_reach/, storage/{exp_name}_reach_avoid/)")
-parser.add_argument("--drone-policy", action="store_true", help="Plot drone-policy RAD vs No-RAD sweep results from storage/log_drone_*.csv, one folder per unique experiment config")
+parser.add_argument("exp_name", nargs="?", help="Experiment name prefix (logs in storage/{exp_name}_reach/logs/, storage/{exp_name}_reach_avoid/logs/)")
+parser.add_argument("--drone-policy", action="store_true", help="Plot drone-policy RAD vs No-RAD sweep results from storage/logs/log_drone_*.csv, one folder per unique experiment config")
 args = parser.parse_args()
 
 
@@ -91,7 +91,7 @@ def plot(results, groups, colors, out_dir, title):
 
 
 if args.drone_policy:
-    drone_csvs = glob.glob("storage/log_drone_*.csv")
+    drone_csvs = glob.glob("storage/logs/log_drone_*.csv")
     colors = {"RAD": "tab:blue", "No RAD": "tab:orange"}
     # An experiment is the log file name minus the seed and the rad/no_rad tag,
     # e.g. "ReachAvoid_5_5_shaped_x-1.0_1.0_..._steps500".
@@ -114,8 +114,8 @@ else:
     if not args.exp_name:
         parser.error("exp_name is required unless --drone-policy is given")
     groups = {
-        "Reach": glob.glob(f"storage/{args.exp_name}_reach/log_*.csv"),
-        "ReachAvoid": glob.glob(f"storage/{args.exp_name}_reach_avoid/log_*.csv"),
+        "Reach": glob.glob(f"storage/{args.exp_name}_reach/logs/log_*.csv"),
+        "ReachAvoid": glob.glob(f"storage/{args.exp_name}_reach_avoid/logs/log_*.csv"),
     }
     colors = {"Reach": "tab:blue", "ReachAvoid": "tab:orange"}
     plot(aggregate(groups), groups, colors,

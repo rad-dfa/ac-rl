@@ -153,7 +153,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--log",
         action="store_true",
-        help="Log to a csv file in the given save directory"
+        help="Log to a csv file in {save-dir}/logs"
     )
     parser.add_argument(
         "--no-rad",
@@ -336,14 +336,14 @@ if __name__ == "__main__":
     # run_tag encodes every setting that changes training, so distinct runs never share
     # files; an identical rerun is refused instead of appending to its CSV / overwriting its checkpoint.
     ckpt_path = f"{args.save_dir}/policy_params_drone_{run_tag}.msgpack"
-    config["LOG"] = f"{args.save_dir}/log_drone_{run_tag}.csv" if args.log else None
+    config["LOG"] = f"{args.save_dir}/logs/log_drone_{run_tag}.csv" if args.log else None
     if os.path.exists(ckpt_path):
         parser.error(f"already trained: {ckpt_path} (delete it or use another --save-dir)")
     if config["LOG"] and os.path.exists(config["LOG"]):
         # The checkpoint is only written once training finishes, so a log without one is from an interrupted run.
         parser.error(f"{config['LOG']} exists without a checkpoint, left over from an interrupted run "
                      "(delete it or use another --save-dir)")
-    os.makedirs(args.save_dir, exist_ok=True)
+    os.makedirs(f"{args.save_dir}/logs", exist_ok=True)
 
     if config["WANDB"]:
         wandb.init(

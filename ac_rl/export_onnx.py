@@ -20,20 +20,25 @@ CLAUDE.md's "Task setup" section for what these mean):
   inputs:
     obs            float32[6]     -- drone (position(3), velocity(3))
     node_features  float32[5,4]   -- DFAx.to_graph() node features, max_size=5
-    edge_features  float32[25,13] -- DFAx.to_graph() edge features, n_tokens+8=13
+    edge_features  float32[25,n_tokens+8] -- DFAx.to_graph() edge features
     current_state  int64[1]       -- index of the DFA's current state
     n_states       int64[5]       -- true state count, broadcast across all 5 slots
   outputs:
     action_mean    float32[1,3]   -- deterministic policy output (already
                                       tanh-squashed and scaled by max_action)
     value          float32[1]     -- critic value estimate
+    cost_value     float32[1]     -- --safe checkpoints only: cost critic estimate
+                                      (discounted probability of a DFA rejection)
 
 `edge_index` is NOT an input: DFAx.to_graph() always builds it as the full
 max_size x max_size meshgrid, independent of the sampled DFA, so it's baked in
 as a constant for this max_size=5 export.
+
+  uv run export_onnx.py storage/policy_params_drone_<run>.msgpack [...] [--out-dir storage/onnx]
 """
 import os
 import re
+import argparse
 import numpy as np
 import jax
 import onnx
@@ -43,7 +48,7 @@ from flax.traverse_util import flatten_dict
 import flax.serialization as serialization
 
 from dfa_gym import DroneEnv, DFAWrapper
-from dfax.samplers import ReachAvoidSampler
+from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
 from rad_embeddings import Encoder, EncoderModule
 from wrappers import LogWrapper
 from train_drone_policy import ActorCritic
@@ -164,15 +169,20 @@ class GraphBuilder:
 # --------------------------------------------------------------------------
 # Config parsing / env+network reconstruction (mirrors train_drone_policy.py)
 # --------------------------------------------------------------------------
+# train_drone_policy.py's run names. Only the parts that change the network or its encoder are used: lambda, gamma
+# and the --safe settings beyond "is it --safe" (which adds the cost critic) don't affect the forward pass.
 CKPT_RE = re.compile(
-    r"policy_params_drone_seed_(?P<seed>\d+)_ReachAvoid_(?P<max_size>\d+)_(?P<n_tokens>\d+)_"
+    r"policy_params_drone_seed_(?P<seed>\d+)_(?P<sampler>Reach|ReachAvoid|RAD)_(?P<max_size>\d+)_(?P<n_tokens>\d+)"
+    r"(?:_p(?P<p>[\d.]+))?_"
     r"(?P<rad>rad|no_rad)_(?P<reward>binary|shaped)_"
     r"x(?P<x_low>-?[\d.]+)_(?P<x_high>-?[\d.]+)_"
     r"y(?P<y_low>-?[\d.]+)_(?P<y_high>-?[\d.]+)_"
     r"z(?P<z_low>-?[\d.]+)_(?P<z_high>-?[\d.]+)_"
     r"speed(?P<speed>[\d.]+)_dt(?P<dt>[\d.]+)_"
-    r"(?P<action_mode>vel|disp)_steps(?P<steps>\d+)\.msgpack$"
+    r"(?P<action_mode>vel|vfilt|disp)_steps(?P<steps>\d+)"
+    r"(?:_g[\d.]+)?(?P<safe>_safe_\S+)?\.msgpack$"
 )
+SAMPLERS = {"Reach": ReachSampler, "ReachAvoid": ReachAvoidSampler, "RAD": RADSampler}
 
 
 def parse_checkpoint_name(fname):
@@ -182,8 +192,10 @@ def parse_checkpoint_name(fname):
     g = m.groupdict()
     return dict(
         seed=int(g["seed"]),
+        sampler=g["sampler"],
         max_size=int(g["max_size"]),
         n_tokens=int(g["n_tokens"]),
+        p=float(g["p"]) if g["p"] is not None else None,  # train_drone_policy.py leaves p = None out of the name
         rad=(g["rad"] == "rad"),
         binary_reward=(g["reward"] == "binary"),
         x_low=float(g["x_low"]), x_high=float(g["x_high"]),
@@ -191,7 +203,9 @@ def parse_checkpoint_name(fname):
         z_low=float(g["z_low"]), z_high=float(g["z_high"]),
         max_speed=float(g["speed"]), dt=float(g["dt"]),
         use_displacement_action=(g["action_mode"] == "disp"),
+        use_velocity_filter=(g["action_mode"] == "vfilt"),
         max_steps_in_episode=int(g["steps"]),
+        safe=g["safe"] is not None,
     )
 
 
@@ -206,15 +220,18 @@ def build_network_and_params(ckpt_path):
         z_low=cfg["z_low"], z_high=cfg["z_high"],
         max_speed=cfg["max_speed"], dt=cfg["dt"],
         use_displacement_action=cfg["use_displacement_action"],
+        use_velocity_filter=cfg["use_velocity_filter"],
         max_steps_in_episode=cfg["max_steps_in_episode"],
     )
-    sampler = ReachAvoidSampler(max_size=cfg["max_size"], n_tokens=drone_env.n_tokens, p=None)
+    assert drone_env.n_tokens == cfg["n_tokens"], f"DroneEnv has {drone_env.n_tokens} tokens, the checkpoint {cfg['n_tokens']}"
+    sampler = SAMPLERS[cfg["sampler"]](max_size=cfg["max_size"], n_tokens=drone_env.n_tokens, p=cfg["p"])
     env = DFAWrapper(env=drone_env, gamma=None, sampler=sampler, binary_reward=cfg["binary_reward"])
     env = LogWrapper(env=env, config={"LOG": None})
 
     if cfg["rad"]:
+        # As in train_drone_policy.py: the frozen encoder isn't stored in the checkpoint.
         encoder = Encoder(max_size=sampler.max_size, n_tokens=drone_env.n_tokens, seed=cfg["seed"],
-                          binary_reward=cfg["binary_reward"])
+                          binary_reward=cfg["binary_reward"], sampler=cfg["sampler"], p=cfg["p"])
     else:
         encoder = EncoderModule(max_size=sampler.max_size)
 
@@ -224,6 +241,7 @@ def build_network_and_params(ckpt_path):
         n_agents=env.num_agents,
         max_action=drone_env.max_action,
         deterministic=True,
+        safe=cfg["safe"],
     )
 
     key = jax.random.PRNGKey(0)
@@ -239,15 +257,11 @@ def get_weights(cfg, network, params):
     flat = flatten_dict(params, sep="/")
     w = {k: np.asarray(v) for k, v in flat.items()}
 
+    # Dense_0-1: obs MLP, 2-4: value head, 5-7: actor mean, 8-10 (--safe only): cost critic.
+    n_dense = 11 if cfg["safe"] else 8
     head = {
-        "Dense_0": (w["params/Dense_0/kernel"], w["params/Dense_0/bias"]),
-        "Dense_1": (w["params/Dense_1/kernel"], w["params/Dense_1/bias"]),
-        "Dense_2": (w["params/Dense_2/kernel"], w["params/Dense_2/bias"]),
-        "Dense_3": (w["params/Dense_3/kernel"], w["params/Dense_3/bias"]),
-        "Dense_4": (w["params/Dense_4/kernel"], w["params/Dense_4/bias"]),
-        "Dense_5": (w["params/Dense_5/kernel"], w["params/Dense_5/bias"]),
-        "Dense_6": (w["params/Dense_6/kernel"], w["params/Dense_6/bias"]),
-        "Dense_7": (w["params/Dense_7/kernel"], w["params/Dense_7/bias"]),
+        f"Dense_{i}": (w[f"params/Dense_{i}/kernel"], w[f"params/Dense_{i}/bias"])
+        for i in range(n_dense)
     }
 
     if cfg["rad"]:
@@ -387,6 +401,21 @@ def build_onnx_model(cfg, head_w, enc_w, max_action, action_dim):
         helper.make_tensor_value_info(value_out, TensorProto.FLOAT, [1]),
     ]
 
+    if cfg["safe"]:
+        k8, bs8 = head_w["Dense_8"]
+        k9, bs9 = head_w["Dense_9"]
+        k10, bs10 = head_w["Dense_10"]
+        c = b.tanh(b.dense(feat, w(k8, "d8_k"), w(bs8, "d8_b")))
+        c = b.tanh(b.dense(c, w(k9, "d9_k"), w(bs9, "d9_b")))
+        c = b.dense(c, w(k10, "d10_k"), w(bs10, "d10_b"))  # (1, 1)
+        outputs.append(helper.make_tensor_value_info(b.squeeze(c, axes=[-1]), TensorProto.FLOAT, [1]))
+
+    # Give the outputs stable names (the builder's are auto-numbered).
+    out_names = ["action_mean", "value", "cost_value"]
+    for out, name in zip(outputs, out_names):
+        b.nodes.append(helper.make_node("Identity", [out.name], [name]))
+        out.name = name
+
     graph = helper.make_graph(b.nodes, "drone_actor_critic", inputs, outputs, initializer=b.initializers)
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", OPSET)])
     # onnx 1.23's make_model() defaults ir_version to the installed onnx package's
@@ -400,16 +429,20 @@ def build_onnx_model(cfg, head_w, enc_w, max_action, action_dim):
 # --------------------------------------------------------------------------
 # Verification against the real JAX forward pass
 # --------------------------------------------------------------------------
-def verify_onnx(onnx_path, network, params, env, n_trials=8, seed=0):
+def verify_onnx(onnx_path, network, params, env, n_trials=32, seed=0):
     sess = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
     key = jax.random.PRNGKey(seed)
     max_diff_action = 0.0
     max_diff_value = 0.0
     for t in range(n_trials):
-        key, k_obs, k_dfa = jax.random.split(key, 3)
+        key, k_obs, k_dfa, k_word = jax.random.split(key, 4)
         obs_sample = env.observation_space(env.agents[0]).sample(k_obs)
         # keep obs continuous but use a fresh random DFA graph each trial by resampling
         dfa = env.sampler.sample(k_dfa)
+        if t % 2:
+            # Half the trials mid-task, as DFAWrapper.step_env leaves the DFA after a few labels (-1 = none).
+            word = jax.random.randint(k_word, (3,), -1, env.sampler.n_tokens)
+            dfa = dfa.advance(word).minimize()
         graph = dfa.to_graph()
         obs_sample = dict(obs_sample)
         obs_sample["dfa"] = graph
@@ -424,36 +457,48 @@ def verify_onnx(onnx_path, network, params, env, n_trials=8, seed=0):
             "current_state": np.asarray(graph["current_state"], dtype=np.int64),
             "n_states": np.asarray(graph["n_states"], dtype=np.int64),
         }
-        action_mean_onnx, value_onnx = sess.run(None, onnx_inputs)
+        onnx_out = sess.run(None, onnx_inputs)
+        # --safe networks stack (value, cost value) as value[..., :2]; the ONNX model returns them separately.
+        value_onnx = np.stack(onnx_out[1:], axis=-1) if network.safe else onnx_out[1]
 
-        max_diff_action = max(max_diff_action, float(np.max(np.abs(action_mean_jax - action_mean_onnx))))
+        max_diff_action = max(max_diff_action, float(np.max(np.abs(action_mean_jax - onnx_out[0]))))
         max_diff_value = max(max_diff_value, float(np.max(np.abs(value_jax - value_onnx))))
 
     return max_diff_action, max_diff_value
 
 
-def main():
-    storage_dir = os.path.join(os.path.dirname(__file__), "storage")
-    out_dir = os.path.join(storage_dir, "onnx")
-    os.makedirs(out_dir, exist_ok=True)
+def export(ckpt_path, out_path):
+    """Exports one checkpoint to out_path and checks it against the JAX network.
 
-    ckpts = sorted(
-        f for f in os.listdir(storage_dir)
-        if CKPT_RE.match(f)  # skips checkpoints this exporter can't rebuild (e.g. --safe ones)
-    )
+    Returns (cfg, env, network, params, max |Δ action_mean|, max |Δ value|), the value diff covering the cost value
+    of --safe checkpoints too.
+    """
+    cfg, env, network, params, init_x = build_network_and_params(ckpt_path)
+    head_w, enc_w = get_weights(cfg, network, params)
+
+    model = build_onnx_model(cfg, head_w, enc_w, network.max_action, network.action_dim)
+    onnx.save(model, out_path)
+
+    max_diff_action, max_diff_value = verify_onnx(out_path, network, params, env)
+    return cfg, env, network, params, max_diff_action, max_diff_value
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Export drone-policy checkpoints (max size 5) to ONNX")
+    parser.add_argument("ckpts", nargs="+", help="train_drone_policy.py checkpoints (.msgpack)")
+    parser.add_argument("--out-dir", default=os.path.join(os.path.dirname(__file__), "storage", "onnx"),
+                        help="Output directory, one <checkpoint name>.onnx per checkpoint (default: storage/onnx)")
+    args = parser.parse_args()
+    for ckpt_path in args.ckpts:
+        parse_checkpoint_name(os.path.basename(ckpt_path))  # fail on an unrecognized name before exporting any
+    os.makedirs(args.out_dir, exist_ok=True)
 
     results = []
-    for fname in ckpts:
-        ckpt_path = os.path.join(storage_dir, fname)
+    for ckpt_path in args.ckpts:
+        fname = os.path.basename(ckpt_path)
         print(f"\n=== {fname} ===")
-        cfg, env, network, params, init_x = build_network_and_params(ckpt_path)
-        head_w, enc_w = get_weights(cfg, network, params)
-
-        model = build_onnx_model(cfg, head_w, enc_w, network.max_action, network.action_dim)
-        out_path = os.path.join(out_dir, fname.replace(".msgpack", ".onnx"))
-        onnx.save(model, out_path)
-
-        max_diff_action, max_diff_value = verify_onnx(out_path, network, params, env)
+        out_path = os.path.join(args.out_dir, fname.replace(".msgpack", ".onnx"))
+        *_, max_diff_action, max_diff_value = export(ckpt_path, out_path)
         print(f"  saved: {out_path}")
         print(f"  max |Δ action_mean| = {max_diff_action:.3e}, max |Δ value| = {max_diff_value:.3e}")
         results.append((fname, max_diff_action, max_diff_value))

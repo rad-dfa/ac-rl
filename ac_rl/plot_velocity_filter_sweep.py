@@ -1,7 +1,7 @@
 """Plots run_velocity_filter_sweep.sh results: RAD vs no-RAD drone policies with and without the velocity filter,
 under each lambda schedule.
 
-Reads the train_drone_policy.py --log CSVs in --storage (via plot_encoder_sweep.py's loader) and writes, under --out:
+Reads the train_drone_policy.py --log CSVs in --storage/logs (via plot_encoder_sweep.py's loader) and writes, under --out:
   <metric>.pdf    one row per lambda schedule, one column per (velocity filter, max size), RAD vs no-RAD in each
                   panel; panels share the y-axis (except losses, entropy and fps), so schedules compare down a
                   column and filter settings along a row
@@ -65,7 +65,7 @@ def plot_grid(data, metric, path):
 
 def main():
     parser = argparse.ArgumentParser(description="Plot RAD vs no-RAD drone policies from run_velocity_filter_sweep.sh")
-    parser.add_argument("--storage", default="storage", help="Directory with the sweep's CSV logs (default: storage)")
+    parser.add_argument("--storage", default="storage", help="--save-dir of the sweep; its CSV logs are read from {storage}/logs (default: storage)")
     parser.add_argument("--out", default="storage/plots/velocity_filter_sweep",
                         help="Output directory (default: storage/plots/velocity_filter_sweep)")
     parser.add_argument("--last", type=int, default=50, help="Updates averaged in summary.csv (default: 50)")
