@@ -13,8 +13,9 @@ from dfa_gym import TokenEnv, DFAWrapper
 import flax.serialization as serialization
 from flax.traverse_util import flatten_dict
 from rad_embeddings import Encoder, EncoderModule
+from rad_embeddings.encoder import canonical_sampler
 from flax.linen.initializers import constant, orthogonal
-from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
+from naming import make_sampler, token_run_name, checkpoint_path, log_path
 
 class ActorCritic(nn.Module):
     action_dim: int
@@ -109,13 +110,13 @@ if __name__ == "__main__":
         "--save-dir",
         type=str,
         default="storage",
-        help="Directory for saving the trained encoder (default: storage)"
+        help="Directory for the trained policy's checkpoint, with --log CSVs in {save-dir}/logs (default: storage)"
     )
     parser.add_argument(
         "--sampler",
-        type=str,
+        type=canonical_sampler,
         default="RAD",
-        help="DFA sampler type: Reach (R), ReachAvoid (RA), ReachAvoidDerived (RAD) (default: RAD)"
+        help="DFA sampler type: Reach (R), ReachAvoid (RA), ReachAvoidDerived (RAD), Mixture (MIX) (default: RAD)"
     )
     parser.add_argument(
         "--max-size",
@@ -198,38 +199,10 @@ if __name__ == "__main__":
     config["DEBUG"] = args.debug
     config["WANDB"] = args.wandb
 
-    if config["WANDB"]:
-        wandb.init(
-            entity="beyazit-y-berkeley-eecs",
-            project="rad-rl-jax",
-            config=config
-        )
-
     key = jax.random.PRNGKey(args.seed)
 
-    if args.sampler in ["R", "Reach"]:
-        sampler = ReachSampler(
-            max_size=args.max_size,
-            n_tokens=args.n_tokens,
-            p=None,
-        )
-        sampler_str = f"Reach_{args.max_size}_{args.n_tokens}"
-    elif args.sampler in ["ReachAvoid", "RA"]:
-        sampler = ReachAvoidSampler(
-            max_size=args.max_size,
-            n_tokens=args.n_tokens,
-            p=None,
-        )
-        sampler_str = f"ReachAvoid_{args.max_size}_{args.n_tokens}"
-    elif args.sampler in ["ReachAvoidDerived", "RAD"]:
-        sampler = RADSampler(
-            max_size=args.max_size,
-            n_tokens=args.n_tokens,
-            p=None,
-        )
-        sampler_str = f"RAD_{args.max_size}_{args.n_tokens}"
-    else:
-        raise ValueError(f"Unknown sampler type: {args.sampler}")
+    # DFA sizes are sampled uniformly (p = None)
+    sampler = make_sampler(args.sampler, args.max_size, args.n_tokens, None)
 
     token_env = TokenEnv(
         n_agents=1,
@@ -247,21 +220,40 @@ if __name__ == "__main__":
     env = LogWrapper(env=env, config=config)
 
     if args.no_rad:
-        rad_str = "no_rad"
         encoder = EncoderModule(
             max_size=env.sampler.max_size
         )
     else:
-        rad_str = "rad"
+        # The encoder pretrained on the same task distribution and reward, as in train_drone_policy.py
         encoder = Encoder(
             max_size=env.sampler.max_size,
             n_tokens=token_env.n_tokens,
-            seed=args.seed
+            seed=args.seed,
+            binary_reward=args.binary_reward,
+            sampler=args.sampler,
+            p=sampler.p,
         )
 
-    config["LOG"] = f"{args.save_dir}/logs/log_seed_{args.seed}_{sampler_str}_{rad_str}.csv" if args.log else None
-    if config["LOG"]:
-        os.makedirs(f"{args.save_dir}/logs", exist_ok=True)
+    # As in train_drone_policy.py: the run name holds every setting that changes training, and an identical rerun is
+    # refused instead of appending to its CSV / overwriting its checkpoint.
+    run_name = token_run_name(dict(vars(args), p=sampler.p))
+    ckpt_path = checkpoint_path(args.save_dir, run_name)
+    config["LOG"] = log_path(args.save_dir, run_name) if args.log else None
+    if os.path.exists(ckpt_path):
+        parser.error(f"already trained: {ckpt_path} (delete it or use another --save-dir)")
+    if config["LOG"] and os.path.exists(config["LOG"]):
+        # The checkpoint is only written once training finishes, so a log without one is from an interrupted run.
+        parser.error(f"{config['LOG']} exists without a checkpoint, left over from an interrupted run "
+                     "(delete it or use another --save-dir)")
+    os.makedirs(f"{args.save_dir}/logs", exist_ok=True)
+
+    if config["WANDB"]:
+        wandb.init(
+            entity="beyazit-y-berkeley-eecs",
+            project="rad-rl-jax",
+            name=run_name,
+            config=config
+        )
 
     network = ActorCritic(
         action_dim=env.action_space(env.agents[0]).n,
@@ -290,11 +282,11 @@ if __name__ == "__main__":
     train_jit = jax.jit(make_train(config, env, network))
     out = train_jit(key)
 
-    os.makedirs(args.save_dir, exist_ok=True)
-
-    trained_params = out["runner_state"][0].params
-    with open(f"{args.save_dir}/policy_params_seed_{args.seed}_{sampler_str}_{rad_str}.msgpack", "wb") as f:
-        f.write(serialization.to_bytes(trained_params))
+    # As in train_drone_policy.py: serializing waits for training to finish, and only then is the checkpoint created,
+    # so an interrupted run never leaves an empty one that counts as "already trained".
+    ckpt_bytes = serialization.to_bytes(out["runner_state"][0].params)
+    with open(ckpt_path, "wb") as f:
+        f.write(ckpt_bytes)
 
     if config["WANDB"]:
         wandb.finish()

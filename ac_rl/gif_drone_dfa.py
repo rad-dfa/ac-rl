@@ -64,4 +64,4 @@ if __name__ == "__main__":
     print_stats(results)
 
     key, subkey = jax.random.split(key)
-    save_gif(args, drone_env, results, subkey, f"drone_{run_tag}_dfa_{DFA_NAME}_n{args.n}")
+    save_gif(args, drone_env, results, subkey, f"{run_tag}_dfa_{DFA_NAME}_n{args.n}")

@@ -34,10 +34,9 @@ CLAUDE.md's "Task setup" section for what these mean):
 max_size x max_size meshgrid, independent of the sampled DFA, so it's baked in
 as a constant for this max_size=5 export.
 
-  uv run export_onnx.py storage/policy_params_drone_<run>.msgpack [...] [--out-dir storage/onnx]
+  uv run export_onnx.py storage/policy_params_<run>.msgpack [...] [--out-dir storage/onnx]
 """
 import os
-import re
 import argparse
 import numpy as np
 import jax
@@ -48,8 +47,8 @@ from flax.traverse_util import flatten_dict
 import flax.serialization as serialization
 
 from dfa_gym import DroneEnv, DFAWrapper
-from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
 from rad_embeddings import Encoder, EncoderModule
+from naming import make_sampler, parse_checkpoint_name
 from wrappers import LogWrapper
 from train_drone_policy import ActorCritic
 
@@ -169,48 +168,18 @@ class GraphBuilder:
 # --------------------------------------------------------------------------
 # Config parsing / env+network reconstruction (mirrors train_drone_policy.py)
 # --------------------------------------------------------------------------
-# train_drone_policy.py's run names. Only the parts that change the network or its encoder are used: lambda, gamma
-# and the --safe settings beyond "is it --safe" (which adds the cost critic) don't affect the forward pass.
-CKPT_RE = re.compile(
-    r"policy_params_drone_seed_(?P<seed>\d+)_(?P<sampler>Reach|ReachAvoid|RAD)_(?P<max_size>\d+)_(?P<n_tokens>\d+)"
-    r"(?:_p(?P<p>[\d.]+))?_"
-    r"(?P<rad>rad|no_rad)_(?P<reward>binary|shaped)_"
-    r"x(?P<x_low>-?[\d.]+)_(?P<x_high>-?[\d.]+)_"
-    r"y(?P<y_low>-?[\d.]+)_(?P<y_high>-?[\d.]+)_"
-    r"z(?P<z_low>-?[\d.]+)_(?P<z_high>-?[\d.]+)_"
-    r"speed(?P<speed>[\d.]+)_dt(?P<dt>[\d.]+)_"
-    r"(?P<action_mode>vel|vfilt|disp)_steps(?P<steps>\d+)"
-    r"(?:_g[\d.]+)?(?P<safe>_safe_\S+)?\.msgpack$"
-)
-SAMPLERS = {"Reach": ReachSampler, "ReachAvoid": ReachAvoidSampler, "RAD": RADSampler}
-
-
-def parse_checkpoint_name(fname):
-    m = CKPT_RE.match(fname)
-    if not m:
-        raise ValueError(f"Unrecognized checkpoint filename: {fname}")
-    g = m.groupdict()
-    return dict(
-        seed=int(g["seed"]),
-        sampler=g["sampler"],
-        max_size=int(g["max_size"]),
-        n_tokens=int(g["n_tokens"]),
-        p=float(g["p"]) if g["p"] is not None else None,  # train_drone_policy.py leaves p = None out of the name
-        rad=(g["rad"] == "rad"),
-        binary_reward=(g["reward"] == "binary"),
-        x_low=float(g["x_low"]), x_high=float(g["x_high"]),
-        y_low=float(g["y_low"]), y_high=float(g["y_high"]),
-        z_low=float(g["z_low"]), z_high=float(g["z_high"]),
-        max_speed=float(g["speed"]), dt=float(g["dt"]),
-        use_displacement_action=(g["action_mode"] == "disp"),
-        use_velocity_filter=(g["action_mode"] == "vfilt"),
-        max_steps_in_episode=int(g["steps"]),
-        safe=g["safe"] is not None,
-    )
+# The run's settings come from the checkpoint's name (naming.py). Only the parts that change the network or its
+# encoder are used: lambda, gamma, beta and the --safe settings beyond "is it --safe" (which adds the cost critic)
+# don't affect the forward pass.
+def checkpoint_config(ckpt_path):
+    cfg = parse_checkpoint_name(ckpt_path)
+    if cfg is None:
+        raise ValueError(f"Unrecognized checkpoint filename: {os.path.basename(ckpt_path)}")
+    return cfg
 
 
 def build_network_and_params(ckpt_path):
-    cfg = parse_checkpoint_name(os.path.basename(ckpt_path))
+    cfg = checkpoint_config(ckpt_path)
     assert cfg["max_size"] == MAX_SIZE, "this exporter hardcodes MAX_SIZE=5"
 
     drone_env = DroneEnv(
@@ -224,11 +193,11 @@ def build_network_and_params(ckpt_path):
         max_steps_in_episode=cfg["max_steps_in_episode"],
     )
     assert drone_env.n_tokens == cfg["n_tokens"], f"DroneEnv has {drone_env.n_tokens} tokens, the checkpoint {cfg['n_tokens']}"
-    sampler = SAMPLERS[cfg["sampler"]](max_size=cfg["max_size"], n_tokens=drone_env.n_tokens, p=cfg["p"])
+    sampler = make_sampler(cfg["sampler"], cfg["max_size"], drone_env.n_tokens, cfg["p"])
     env = DFAWrapper(env=drone_env, gamma=None, sampler=sampler, binary_reward=cfg["binary_reward"])
     env = LogWrapper(env=env, config={"LOG": None})
 
-    if cfg["rad"]:
+    if not cfg["no_rad"]:
         # As in train_drone_policy.py: the frozen encoder isn't stored in the checkpoint.
         encoder = Encoder(max_size=sampler.max_size, n_tokens=drone_env.n_tokens, seed=cfg["seed"],
                           binary_reward=cfg["binary_reward"], sampler=cfg["sampler"], p=cfg["p"])
@@ -264,7 +233,7 @@ def get_weights(cfg, network, params):
         for i in range(n_dense)
     }
 
-    if cfg["rad"]:
+    if not cfg["no_rad"]:
         enc_flat = flatten_dict(network.encoder.encoder_params, sep="/")
         enc_w = {k: np.asarray(v) for k, v in enc_flat.items()}
         prefix = "params"
@@ -490,7 +459,7 @@ def main():
                         help="Output directory, one <checkpoint name>.onnx per checkpoint (default: storage/onnx)")
     args = parser.parse_args()
     for ckpt_path in args.ckpts:
-        parse_checkpoint_name(os.path.basename(ckpt_path))  # fail on an unrecognized name before exporting any
+        checkpoint_config(ckpt_path)  # fail on an unrecognized name before exporting any
     os.makedirs(args.out_dir, exist_ok=True)
 
     results = []

@@ -37,14 +37,15 @@ from dfax import DFAx
 from dfa_gym import animate_drone_trace
 from export_onnx import export
 from test_drone_policy import run_episodes
+from naming import DRONE_SWEEP, drone_run_name, checkpoint_path
 
-ENV_TAG = "x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1"
-SAFE_TAG = "steps500_g0.999_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0"
-# train_drone_policies.sh's runs (lambda_0 = 1, clip [0, 1], gamma 0.999) with max size 5, p 0.5 and the pretrained RAD encoder.
+# train_drone_policies.sh's runs (lambda_0 = 1, clip [0, 1], gamma 0.999, PBRS beta 0.7) with seed 42, the MIX
+# sampler, max size 5, p 0.5 and the pretrained RAD encoder.
 POLICIES = {
-    "rad_no_filter": f"storage/policy_params_drone_seed_42_RAD_5_10_p0.5_rad_shaped_{ENV_TAG}_vel_{SAFE_TAG}.msgpack",
-    "rad_velocity_filter":
-        f"storage/policy_params_drone_seed_42_RAD_5_10_p0.5_rad_shaped_{ENV_TAG}_vfilt_{SAFE_TAG}.msgpack",
+    name: checkpoint_path("storage", drone_run_name(dict(
+        DRONE_SWEEP, seed=42, sampler="MIX", max_size=5, n_tokens=10, p=0.5, no_rad=False, use_velocity_filter=vfilt
+    )))
+    for name, vfilt in (("rad_no_filter", False), ("rad_velocity_filter", True))
 }
 # The bundle's hand-written README.md and run_example.py.
 BUNDLE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "drone_bundle")

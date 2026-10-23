@@ -94,7 +94,7 @@ if args.drone_policy:
     drone_csvs = glob.glob("storage/logs/log_drone_*.csv")
     colors = {"RAD": "tab:blue", "No RAD": "tab:orange"}
     # An experiment is the log file name minus the seed and the rad/no_rad tag,
-    # e.g. "ReachAvoid_5_5_shaped_x-1.0_1.0_..._steps500".
+    # e.g. "RA_5_10_pNone_shaped_x-1.0_1.0_..._steps500_g0.999" (see naming.py).
     # The rad tag is matched case-sensitively so the "RAD" sampler is not confused with it.
     pattern = re.compile(r"^log_drone_seed_(\d+)_(.+?)_(no_rad|rad)_(.+)\.csv$")
     experiments = defaultdict(lambda: {"RAD": [], "No RAD": []})

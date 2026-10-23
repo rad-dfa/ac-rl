@@ -19,19 +19,17 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from naming import DRONE_SWEEP, drone_run_name, drone_run_settings, checkpoint_path, parse_log_name, num
 
 # Run settings of train_drone_policies.sh's runs without and with the velocity filter, by output subdirectory.
 DEFAULT_TAGS = {
-    mode: f"shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_{mode}_steps500_g0.999_safe_d0.05_lr0.05_w0_l1.0_c0.0_1.0"
+    mode: drone_run_settings(dict(DRONE_SWEEP, use_velocity_filter=(mode == "vfilt")))
     for mode in ("vel", "vfilt")
 }
-LOG_RE = re.compile(
-    r"^log_drone_seed_(?P<seed>\d+)_(?P<sampler>Reach|ReachAvoid|RAD)_(?P<max_size>\d+)_(?P<n_tokens>\d+)"
-    r"(?:_p(?P<p>[^_]+))?_(?P<rad>no_rad|rad)_(?P<tag>.+)\.csv$"
-)
 
 # Grid layout: rows are samplers, columns are (max size, p). Rows and columns without runs are dropped.
-SAMPLERS = ["ReachAvoid", "RAD", "Reach"]
+SAMPLERS = ["RA", "RAD", "R", "MIX"]
+SAMPLER_NAMES = {"R": "Reach", "RA": "ReachAvoid", "RAD": "RAD", "MIX": "Mixture"}
 COLUMNS = [(10, "0.5"), (10, "None"), (5, "0.5"), (5, "None")]
 
 METHODS = {"rad": "RAD", "no_rad": "No RAD"}
@@ -75,14 +73,13 @@ def load_runs(storage, tag):
     """{(sampler, max_size, p): {"rad"/"no_rad": {"df": per-timestep mean/std over seeds, "seeds", "incomplete"}}}"""
     grouped = {}
     for path in sorted(glob.glob(os.path.join(storage, "logs", "log_drone_*.csv"))):
-        name = os.path.basename(path)
-        m = LOG_RE.match(name)
-        if m is None or m["tag"] != tag:
+        cfg = parse_log_name(path)
+        if cfg is None or drone_run_settings(cfg) != tag:
             continue
-        config = (m["sampler"], int(m["max_size"]), m["p"] or "None")
-        ckpt = os.path.join(storage, f"policy_params_drone_{name[len('log_drone_'):-len('.csv')]}.msgpack")
-        runs = grouped.setdefault(config, {}).setdefault(m["rad"], [])
-        runs.append((int(m["seed"]), pd.read_csv(path), not os.path.exists(ckpt)))
+        config = (cfg["sampler"], cfg["max_size"], num(cfg["p"]))
+        ckpt = checkpoint_path(storage, drone_run_name(cfg))
+        runs = grouped.setdefault(config, {}).setdefault("no_rad" if cfg["no_rad"] else "rad", [])
+        runs.append((cfg["seed"], pd.read_csv(path), not os.path.exists(ckpt)))
 
     configs = {}
     for config, methods in grouped.items():
@@ -99,12 +96,13 @@ def load_runs(storage, tag):
 
 def config_title(config):
     sampler, max_size, p = config
-    return f"{sampler} · max size {max_size} · p = {p}"
+    return f"{SAMPLER_NAMES[sampler]} · max size {max_size} · p = {p}"
 
 
 def config_dir(config):
+    # As in run names (naming.py)
     sampler, max_size, p = config
-    return f"{sampler}_{max_size}" + ("" if p == "None" else f"_p{p}")
+    return f"{sampler}_{max_size}_p{p}"
 
 
 def incomplete_note(method, run):
@@ -248,7 +246,7 @@ def main():
         if not configs:
             print(f"No logs in {args.storage} match --tag {tag}, skipping")
             continue
-        delta = re.search(r"_safe_d([\d.]+)", tag)
+        delta = re.search(r"_safe_d([^_]+)", tag)
         delta = float(delta[1]) if delta else None
         metrics = [c for c in next(iter(next(iter(configs.values())).values()))["df"].columns.get_level_values(0).unique()]
 

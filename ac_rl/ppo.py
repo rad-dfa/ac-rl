@@ -36,12 +36,15 @@ def make_train(config, env, network):
     config["MINIBATCH_SIZE"] = (
         config["NUM_ACTORS"] * config["NUM_STEPS"] // config["NUM_MINIBATCHES"]
     )
-    # PPO-Lagrangian: maximize P(accept) s.t. P(reject) <= DELTA. The +1/-1 DFA
-    # reward is split into reward/cost channels [max(R, 0), max(-R, 0)], the
-    # network's value is (..., 2) = [reward value, cost value], and the policy
+    # PPO-Lagrangian: maximize P(accept) s.t. P(reject) <= DELTA. The unshaped +1/-1
+    # DFA reward is split into reward/cost channels [max(R, 0), max(-R, 0)], with
+    # DFAWrapper's PBRS term (zero without shaping) added to the reward channel only,
+    # the network's value is (..., 2) = [reward value, cost value], and the policy
     # follows A_r - lam * A_c with lam updated by dual ascent, projected onto
     # [0, inf) or, if given, LAMBDA_CLIP = (low, high).
     safe = config.get("SAFE", False)
+    # PBRS preserves optimal policies only if DFAWrapper discounts potentials with the learner's gamma.
+    assert getattr(env, "gamma", None) in (None, config["GAMMA"])
 
     def safe_metrics(log, info, last_returns):
         if safe:
@@ -112,7 +115,12 @@ def make_train(config, env, network):
                 info = jax.tree.map(lambda x: x.reshape((config["NUM_ACTORS"])), info)
                 reward = jnp.concatenate([reward[agent] for agent in env.agents])
                 if safe:
-                    reward = jnp.stack([jnp.maximum(reward, 0.0), jnp.maximum(-reward, 0.0)], axis=-1)
+                    # Splitting the shaped reward would leak PBRS into the cost, so split the unshaped one. The
+                    # shaping then only shifts J_r by -E[potential(s_0)], leaving the Lagrangian's optima unchanged.
+                    unshaped = info["unshaped_reward"]
+                    reward = jnp.stack(
+                        [jnp.maximum(unshaped, 0.0) + info["pbrs_reward"], jnp.maximum(-unshaped, 0.0)], axis=-1
+                    )
                 transition = Transition(
                     done=jnp.concatenate([done[agent] for agent in env.agents]),
                     action=action,

@@ -9,7 +9,8 @@ from rad_embeddings import Encoder, EncoderModule
 from flax.traverse_util import flatten_dict
 from dfa_gym import TokenEnv, DFAWrapper
 import flax.serialization as serialization
-from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
+from rad_embeddings.encoder import canonical_sampler
+from naming import make_sampler, token_run_name, checkpoint_path
 from train import ActorCritic
 from ppo import batchify
 from collections import Counter
@@ -50,9 +51,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--sampler",
-        type=str,
+        type=canonical_sampler,
         default="RAD",
-        help="DFA sampler type: Reach (R), ReachAvoid (RA), ReachAvoidDerived (RAD) (default: RAD)"
+        help="DFA sampler type: Reach (R), ReachAvoid (RA), ReachAvoidDerived (RAD), Mixture (MIX) (default: RAD)"
     )
     parser.add_argument(
         "--model-dir",
@@ -78,6 +79,11 @@ if __name__ == "__main__":
         help="Don't use pretrained RAD embeddings"
     )
     parser.add_argument(
+        "--binary-reward",
+        action="store_true",
+        help="Policies were trained with --binary-reward"
+    )
+    parser.add_argument(
         "--csv",
         action="store_true",
         help="Output results on a comma seperated line"
@@ -88,26 +94,8 @@ if __name__ == "__main__":
     if batch_size == -1:
         batch_size = args.n
 
-    if args.sampler in ["R", "Reach"]:
-        sampler = ReachSampler(
-            max_size=args.max_size,
-            n_tokens=args.n_tokens
-        )
-        sampler_str = f"Reach_{args.max_size}_{args.n_tokens}"
-    elif args.sampler in ["ReachAvoid", "RA"]:
-        sampler = ReachAvoidSampler(
-            max_size=args.max_size,
-            n_tokens=args.n_tokens
-        )
-        sampler_str = f"ReachAvoid_{args.max_size}_{args.n_tokens}"
-    elif args.sampler in ["ReachAvoidDerived", "RAD"]:
-        sampler = RADSampler(
-            max_size=args.max_size,
-            n_tokens=args.n_tokens
-        )
-        sampler_str = f"RAD_{args.max_size}_{args.n_tokens}"
-    else:
-        raise ValueError(f"Unknown sampler type: {args.sampler}")
+    # As in train.py, DFA sizes are sampled uniformly (p = None)
+    sampler = make_sampler(args.sampler, args.max_size, args.n_tokens, None)
 
     n_seeds = len(args.seeds)
     success_rate_list = jnp.zeros((n_seeds,))
@@ -128,26 +116,30 @@ if __name__ == "__main__":
         env = DFAWrapper(
             env=token_env,
             gamma=None,
-            sampler=sampler
+            sampler=sampler,
+            binary_reward=args.binary_reward
         )
 
         if args.no_rad:
-            rad_str = "no_rad"
             encoder = EncoderModule(
                 max_size=env.sampler.max_size
             )
         else:
-            rad_str = "rad"
+            # Must match train.py: the frozen encoder isn't stored in the checkpoint.
             encoder = Encoder(
                 max_size=env.sampler.max_size,
                 n_tokens=token_env.n_tokens,
-                seed=args.seeds[i]
+                seed=args.seeds[i],
+                binary_reward=args.binary_reward,
+                sampler=args.sampler,
+                p=sampler.p,
             )
 
         network = ActorCritic(
             action_dim=env.action_space(env.agents[0]).n,
             encoder=encoder,
-            n_agents=env.num_agents
+            n_agents=env.num_agents,
+            n_tokens=env.n_tkns
         )
 
         key, subkey = jax.random.split(key)
@@ -155,7 +147,8 @@ if __name__ == "__main__":
         key, subkey = jax.random.split(key)
         params = network.init(subkey, init_x)
 
-        with open(f"{args.model_dir}/policy_params_seed_{args.seeds[i]}_{sampler_str}_{rad_str}.msgpack", "rb") as f:
+        run_name = token_run_name(dict(vars(args), seed=seed, p=sampler.p, dynamic_alphabet=False))
+        with open(checkpoint_path(args.model_dir, run_name), "rb") as f:
             params = serialization.from_bytes(params, f.read())
 
         @partial(jax.jit, static_argnums=(0, 1))
@@ -257,7 +250,7 @@ if __name__ == "__main__":
     avg_disc_return_std = jnp.std(avg_disc_return_list)
 
     if args.csv:
-        print(f"{rad_str}, {train_dataset}, {test_dataset}, {success_rate_mean} +/- {success_rate_std}, {avg_len_mean} +/- {avg_len_std}, {avg_reward_mean} +/- {avg_reward_std}, {avg_disc_return_mean} +/- {avg_disc_return_std}")
+        print(f"{'no_rad' if args.no_rad else 'rad'}, {args.sampler}, {success_rate_mean} +/- {success_rate_std}, {avg_len_mean} +/- {avg_len_std}, {avg_reward_mean} +/- {avg_reward_std}, {avg_disc_return_mean} +/- {avg_disc_return_std}")
     else:
         print(f"Test completed for {n_seeds} seeds.")
         print(f"Success rate: {success_rate_mean:.2f} +/- {success_rate_std:.2f}")

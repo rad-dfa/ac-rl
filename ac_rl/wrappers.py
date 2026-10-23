@@ -52,7 +52,8 @@ class LogWrapper(object):
             key, state.env_state, action
         )
         ep_done = done["__all__"]
-        _rew = self._batchify_floats(reward)
+        # DFAWrapper's reward without PBRS, so returns and success/reject rates measure the task itself
+        _rew = info["unshaped_reward"]
         new_episode_return = state.episode_returns + _rew
         new_episode_disc_return = state.episode_disc_returns + _rew * self.config["GAMMA"]**state.episode_lengths
         new_episode_length = state.episode_lengths + 1
@@ -78,7 +79,4 @@ class LogWrapper(object):
 
     def __getattr__(self, name: str):
         return getattr(self._env, name)
-
-    def _batchify_floats(self, x: dict):
-        return jnp.stack([x[a] for a in self._env.agents])
 

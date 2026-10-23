@@ -12,10 +12,10 @@ from dfax import batch2graph
 import flax.serialization as serialization
 from flax.traverse_util import flatten_dict
 from rad_embeddings import Encoder, EncoderModule
-from rad_embeddings.encoder import parse_p
+from rad_embeddings.encoder import parse_p, canonical_sampler
 from dfa_gym import DroneEnv, DFAWrapper
 from flax.linen.initializers import constant, orthogonal
-from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
+from naming import make_sampler, drone_run_name, checkpoint_path, log_path
 
 
 class ActorCritic(nn.Module):
@@ -119,13 +119,13 @@ if __name__ == "__main__":
         "--save-dir",
         type=str,
         default="storage",
-        help="Directory for saving the trained encoder (default: storage)"
+        help="Directory for the trained policy's checkpoint, with --log CSVs in {save-dir}/logs (default: storage)"
     )
     parser.add_argument(
         "--sampler",
-        type=str,
+        type=canonical_sampler,
         default="RAD",
-        help="DFA sampler type: Reach (R), ReachAvoid (RA), ReachAvoidDerived (RAD) (default: RAD)"
+        help="DFA sampler type: Reach (R), ReachAvoid (RA), ReachAvoidDerived (RAD), Mixture (MIX) (default: RAD)"
     )
     parser.add_argument(
         "--max-size",
@@ -214,10 +214,19 @@ if __name__ == "__main__":
         help="Episode horizon (default: 500)"
     )
     parser.add_argument("--gamma", type=float, default=0.999, help="PPO discount factor, for rewards and --safe costs (default: 0.999)")
+    parser.add_argument(
+        "--beta",
+        type=float,
+        default=None,
+        help="Potential-based reward shaping with potential beta**(distance to acceptance), discounted with --gamma; "
+             "shapes the reward only, not --safe's cost (default: no shaping)"
+    )
     args = parser.parse_args()
 
     if args.safe and args.binary_reward:
         parser.error("--safe needs the +1/-1 DFA reward to tell rejections from timeouts; drop --binary-reward")
+    if args.beta is not None and not 0 < args.beta < 1:
+        parser.error("--beta needs 0 < BETA < 1")
     if args.lambda_clip:
         lam_low, lam_high = args.lambda_clip
         if not 0 <= lam_low <= lam_high:
@@ -271,46 +280,22 @@ if __name__ == "__main__":
         max_steps_in_episode=args.max_steps_in_episode,
     )
 
-    if args.sampler in ["R", "Reach"]:
-        sampler = ReachSampler(
-            max_size=args.max_size,
-            n_tokens=drone_env.n_tokens,
-            p=args.p,
-        )
-        sampler_str = f"Reach_{args.max_size}_{drone_env.n_tokens}"
-    elif args.sampler in ["ReachAvoid", "RA"]:
-        sampler = ReachAvoidSampler(
-            max_size=args.max_size,
-            n_tokens=drone_env.n_tokens,
-            p=args.p,
-        )
-        sampler_str = f"ReachAvoid_{args.max_size}_{drone_env.n_tokens}"
-    elif args.sampler in ["ReachAvoidDerived", "RAD"]:
-        sampler = RADSampler(
-            max_size=args.max_size,
-            n_tokens=drone_env.n_tokens,
-            p=args.p,
-        )
-        sampler_str = f"RAD_{args.max_size}_{drone_env.n_tokens}"
-    else:
-        raise ValueError(f"Unknown sampler type: {args.sampler}")
-    sampler_str += f"_p{args.p}" if args.p is not None else ""  # p = None keeps earlier names
+    sampler = make_sampler(args.sampler, args.max_size, drone_env.n_tokens, args.p)
 
     env = DFAWrapper(
         env=drone_env,
-        gamma=None,
+        gamma=None if args.beta is None else args.gamma,
+        beta=args.beta,
         sampler=sampler,
         binary_reward=args.binary_reward,
     )
     env = LogWrapper(env=env, config=config)
 
     if args.no_rad:
-        rad_str = "no_rad"
         encoder = EncoderModule(
             max_size=env.sampler.max_size
         )
     else:
-        rad_str = "rad"
         encoder = Encoder(
             max_size=env.sampler.max_size,
             n_tokens=drone_env.n_tokens,
@@ -320,23 +305,11 @@ if __name__ == "__main__":
             p=args.p,
         )
 
-    reward_str = "binary" if args.binary_reward else "shaped"
-    action_mode_str = "disp" if args.use_displacement_action else "vfilt" if args.use_velocity_filter else "vel"
-    run_tag = (
-        f"seed_{args.seed}_{sampler_str}_{rad_str}_{reward_str}"
-        f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
-        f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
-    )
-    run_tag += f"_g{args.gamma}" if args.gamma != 0.99 else ""  # gamma = 0.99 keeps earlier names
-    if args.safe:
-        run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
-        run_tag += f"_k{args.lambda_every}" if args.lambda_every > 1 else ""  # k = 1 keeps earlier names
-        run_tag += f"_c{args.lambda_clip[0]}_{args.lambda_clip[1]}" if args.lambda_clip else ""  # no clip keeps earlier names
-
     # run_tag encodes every setting that changes training, so distinct runs never share
     # files; an identical rerun is refused instead of appending to its CSV / overwriting its checkpoint.
-    ckpt_path = f"{args.save_dir}/policy_params_drone_{run_tag}.msgpack"
-    config["LOG"] = f"{args.save_dir}/logs/log_drone_{run_tag}.csv" if args.log else None
+    run_tag = drone_run_name(dict(vars(args), n_tokens=drone_env.n_tokens))
+    ckpt_path = checkpoint_path(args.save_dir, run_tag)
+    config["LOG"] = log_path(args.save_dir, run_tag) if args.log else None
     if os.path.exists(ckpt_path):
         parser.error(f"already trained: {ckpt_path} (delete it or use another --save-dir)")
     if config["LOG"] and os.path.exists(config["LOG"]):

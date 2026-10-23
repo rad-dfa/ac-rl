@@ -6,9 +6,9 @@ from ppo import batchify
 from train_drone_policy import ActorCritic
 import flax.serialization as serialization
 from rad_embeddings import Encoder, EncoderModule
-from rad_embeddings.encoder import parse_p
+from rad_embeddings.encoder import parse_p, canonical_sampler
 from dfa_gym import DroneEnv, DFAWrapper, animate_drone_trace
-from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
+from naming import make_sampler, drone_run_name, checkpoint_path, num
 
 # Default of train_drone_policy.py's --gamma (used by LogWrapper for disc_return).
 GAMMA = 0.999
@@ -36,9 +36,9 @@ def make_parser(description, n_default=100, gif_flag=True):
     )
     parser.add_argument(
         "--sampler",
-        type=str,
+        type=canonical_sampler,
         default="RAD",
-        help="DFA sampler type: Reach (R), ReachAvoid (RA), ReachAvoidDerived (RAD) (default: RAD)"
+        help="DFA sampler type: Reach (R), ReachAvoid (RA), ReachAvoidDerived (RAD), Mixture (MIX) (default: RAD)"
     )
     parser.add_argument(
         "--max-size",
@@ -54,7 +54,7 @@ def make_parser(description, n_default=100, gif_flag=True):
     )
     parser.add_argument(
         "--eval-sampler",
-        type=str,
+        type=canonical_sampler,
         default=None,
         help="Test on this sampler's tasks instead of --sampler's; the encoder still follows --sampler (default: --sampler)"
     )
@@ -107,6 +107,8 @@ def make_parser(description, n_default=100, gif_flag=True):
         help="Episode horizon (default: 500)"
     )
     parser.add_argument("--gamma", type=float, default=GAMMA, help=f"--gamma the policy was trained with; also discounts the reported return (default: {GAMMA})")
+    parser.add_argument("--beta", type=float, default=None,
+                        help="--beta the policy was trained with, only for its file name: test episodes are unshaped (default: none)")
     parser.add_argument(
         "--n",
         type=int,
@@ -137,23 +139,15 @@ def make_parser(description, n_default=100, gif_flag=True):
     return parser
 
 
-def make_sampler(name, max_size, n_tokens, p):
-    """Returns (sampler, sampler_str), sampler_str being its part of train_drone_policy.py's run name."""
-    if name in ["R", "Reach"]:
-        sampler, long_name = ReachSampler(max_size=max_size, n_tokens=n_tokens, p=p), "Reach"
-    elif name in ["ReachAvoid", "RA"]:
-        sampler, long_name = ReachAvoidSampler(max_size=max_size, n_tokens=n_tokens, p=p), "ReachAvoid"
-    elif name in ["ReachAvoidDerived", "RAD"]:
-        sampler, long_name = RADSampler(max_size=max_size, n_tokens=n_tokens, p=p), "RAD"
-    else:
-        raise ValueError(f"Unknown sampler type: {name}")
-    sampler_str = f"{long_name}_{max_size}_{n_tokens}" + (f"_p{p}" if p is not None else "")
-    return sampler, sampler_str
-
-
 def eval_task(args):
     """(sampler, p) of the test tasks: --eval-sampler/--eval-p, each defaulting to the training value."""
     return args.eval_sampler or args.sampler, getattr(args, "eval_p", args.p)
+
+
+def eval_suffix(args):
+    """The suffix of the run name in output names for test tasks other than the training ones, else empty."""
+    eval_name, eval_p = eval_task(args)
+    return f"_eval_{eval_name}_p{num(eval_p)}" if (eval_name, eval_p) != (args.sampler, args.p) else ""
 
 
 def setup(args):
@@ -173,11 +167,10 @@ def setup(args):
         max_steps_in_episode=args.max_steps_in_episode,
     )
 
-    sampler, sampler_str = make_sampler(args.sampler, args.max_size, drone_env.n_tokens, args.p)
-    # --eval-sampler/--eval-p only change the test tasks; the training ones above still pick the encoder and name.
+    # --eval-sampler/--eval-p only change the test tasks; the training ones still pick the encoder and name.
     eval_name, eval_p = eval_task(args)
-    if (eval_name, eval_p) != (args.sampler, args.p):
-        sampler, _ = make_sampler(eval_name, args.max_size, drone_env.n_tokens, eval_p)
+    sampler = make_sampler(eval_name, args.max_size, drone_env.n_tokens, eval_p)
+    if eval_suffix(args):
         print(f"Testing on {eval_name} tasks with p={eval_p} (trained on {args.sampler}, p={args.p})")
 
     env = DFAWrapper(
@@ -188,12 +181,10 @@ def setup(args):
     )
 
     if args.no_rad:
-        rad_str = "no_rad"
         encoder = EncoderModule(
             max_size=env.sampler.max_size
         )
     else:
-        rad_str = "rad"
         # Must match train_drone_policy.py: the frozen encoder isn't stored in the checkpoint.
         encoder = Encoder(
             max_size=env.sampler.max_size,
@@ -204,20 +195,8 @@ def setup(args):
             p=args.p,
         )
 
-    reward_str = "binary" if args.binary_reward else "shaped"
-    action_mode_str = "disp" if args.use_displacement_action else "vfilt" if args.use_velocity_filter else "vel"
-    run_tag = (
-        f"seed_{args.seed}_{sampler_str}_{rad_str}_{reward_str}"
-        f"_x{args.x_low}_{args.x_high}_y{args.y_low}_{args.y_high}_z{args.z_low}_{args.z_high}"
-        f"_speed{args.max_speed}_dt{args.dt}_{action_mode_str}_steps{args.max_steps_in_episode}"
-    )
-    run_tag += f"_g{args.gamma}" if args.gamma != 0.99 else ""  # as in train_drone_policy.py: 0.99 keeps earlier names
-    if args.safe:
-        run_tag += f"_safe_d{args.delta}_lr{args.lambda_lr}_w{int(args.lambda_warmup)}_l{args.lambda_init}"
-        run_tag += f"_k{args.lambda_every}" if args.lambda_every > 1 else ""
-        run_tag += f"_c{args.lambda_clip[0]}_{args.lambda_clip[1]}" if args.lambda_clip else ""
-
-    expected_name = f"policy_params_drone_{run_tag}.msgpack"
+    run_tag = drone_run_name(dict(vars(args), n_tokens=drone_env.n_tokens))
+    expected_name = os.path.basename(checkpoint_path("", run_tag))
     if os.path.basename(args.model_path) != expected_name:
         print(f"WARNING: model file name does not match the given args (expected {expected_name})")
 
@@ -396,6 +375,4 @@ if __name__ == "__main__":
 
     if args.generate_gif:
         key, subkey = jax.random.split(key)
-        eval_name, eval_p = eval_task(args)
-        eval_str = f"_eval_{eval_name}_p{eval_p}" if (eval_name, eval_p) != (args.sampler, args.p) else ""
-        save_gif(args, drone_env, results, subkey, f"drone_{run_tag}{eval_str}_n{args.n}")
+        save_gif(args, drone_env, results, subkey, f"{run_tag}{eval_suffix(args)}_n{args.n}")
