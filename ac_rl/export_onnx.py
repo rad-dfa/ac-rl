@@ -34,7 +34,7 @@ CLAUDE.md's "Task setup" section for what these mean):
 max_size x max_size meshgrid, independent of the sampled DFA, so it's baked in
 as a constant for this max_size=5 export.
 
-  uv run export_onnx.py storage/policy_params_<run>.msgpack [...] [--out-dir storage/onnx]
+  uv run export_onnx.py storage/models/policy_params_<run>.msgpack [...] [--out-dir storage/onnx]
 """
 import os
 import argparse

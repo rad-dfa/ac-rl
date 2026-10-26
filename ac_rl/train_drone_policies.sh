@@ -11,9 +11,9 @@
 #   ./train_drone_policies.sh --wandb
 #   ./train_drone_policies.sh --save-dir storage/final
 #
-# Checkpoints go to the save dir (default storage) and CSV logs to its logs/ subdir. Runs that already have a
-# checkpoint are skipped (train_drone_policy.py refuses to overwrite them), so re-running the script after an
-# interruption resumes training. A run interrupted mid-training leaves a log without a checkpoint; it is reported
+# Checkpoints go to the save dir's (default storage) models/ subdir and CSV logs to its logs/ subdir. Runs that
+# already have a checkpoint are skipped (train_drone_policy.py refuses to overwrite them), so re-running the script
+# after an interruption resumes training. A run interrupted mid-training leaves a log without a checkpoint; it is reported
 # as failed until that log is deleted.
 #
 # Then plot RAD vs no-RAD for each filter setting, and package the max size 5, p 0.5 policies with the pretrained

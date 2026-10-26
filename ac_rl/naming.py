@@ -12,7 +12,7 @@ env and PPO settings, PBRS's beta if the reward is shaped with PBRS, and PPO-Lag
 --lambda-clip is written as its [0, inf) default). Samplers go by rad_embeddings' short names (R, RA, RAD, MIX), as
 in its encoder checkpoints, whichever alias was given. Floats are written as repr(float), which round-trips exactly.
 
-Checkpoints are {save_dir}/policy_params_{run}.msgpack and CSV logs {save_dir}/logs/log_{run}.csv.
+Checkpoints are {save_dir}/models/policy_params_{run}.msgpack and CSV logs {save_dir}/logs/log_{run}.csv.
 """
 import os
 import re
@@ -72,7 +72,7 @@ def token_run_name(cfg):
 
 
 def checkpoint_path(save_dir, run):
-    return os.path.join(save_dir, f"policy_params_{run}.msgpack")
+    return os.path.join(save_dir, "models", f"policy_params_{run}.msgpack")
 
 
 def log_path(save_dir, run):

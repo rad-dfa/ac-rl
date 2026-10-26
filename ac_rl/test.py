@@ -59,7 +59,7 @@ if __name__ == "__main__":
         "--model-dir",
         type=str,
         default="storage",
-        help="Directory for the params (default: storage)"
+        help="--save-dir of the runs; checkpoints are read from {model-dir}/models (default: storage)"
     )
     parser.add_argument(
         "--n",

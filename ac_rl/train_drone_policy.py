@@ -119,7 +119,7 @@ if __name__ == "__main__":
         "--save-dir",
         type=str,
         default="storage",
-        help="Directory for the trained policy's checkpoint, with --log CSVs in {save-dir}/logs (default: storage)"
+        help="Directory for the trained policy's checkpoint in {save-dir}/models, with --log CSVs in {save-dir}/logs (default: storage)"
     )
     parser.add_argument(
         "--sampler",
@@ -316,6 +316,7 @@ if __name__ == "__main__":
         # The checkpoint is only written once training finishes, so a log without one is from an interrupted run.
         parser.error(f"{config['LOG']} exists without a checkpoint, left over from an interrupted run "
                      "(delete it or use another --save-dir)")
+    os.makedirs(f"{args.save_dir}/models", exist_ok=True)
     os.makedirs(f"{args.save_dir}/logs", exist_ok=True)
 
     if config["WANDB"]:
