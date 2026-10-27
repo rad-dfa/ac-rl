@@ -37,13 +37,14 @@ from dfax import DFAx
 from dfa_gym import animate_drone_trace
 from export_onnx import export
 from test_drone_policy import run_episodes
-from naming import DRONE_SWEEP, drone_run_name, checkpoint_path
+from naming import DRONE_SWEEP, DEFAULT_TOTAL_TIMESTEPS, drone_run_name, checkpoint_path
 
 # train_drone_policies.sh's runs (lambda_0 = 1, clip [0, 1], gamma 0.999, PBRS beta 0.7) with seed 42, the MIX
-# sampler, max size 5, p 0.5 and the pretrained RAD encoder.
+# sampler, max size 5, p 0.5 and the pretrained RAD encoder, from before it went to 2e7 steps.
 POLICIES = {
     name: checkpoint_path("storage", drone_run_name(dict(
-        DRONE_SWEEP, seed=42, sampler="MIX", max_size=5, n_tokens=10, p=0.5, no_rad=False, use_velocity_filter=vfilt
+        DRONE_SWEEP, seed=42, sampler="MIX", max_size=5, n_tokens=10, p=0.5, no_rad=False, use_velocity_filter=vfilt,
+        total_timesteps=DEFAULT_TOTAL_TIMESTEPS,
     )))
     for name, vfilt in (("rad_no_filter", False), ("rad_velocity_filter", True))
 }

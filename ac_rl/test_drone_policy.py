@@ -8,7 +8,7 @@ import flax.serialization as serialization
 from rad_embeddings import Encoder, EncoderModule
 from rad_embeddings.encoder import parse_p, canonical_sampler
 from dfa_gym import DroneEnv, DFAWrapper, animate_drone_trace
-from naming import make_sampler, drone_run_name, checkpoint_path, num
+from naming import make_sampler, drone_run_name, checkpoint_path, num, DEFAULT_TOTAL_TIMESTEPS, parse_timesteps
 
 # Default of train_drone_policy.py's --gamma (used by LogWrapper for disc_return).
 GAMMA = 0.999
@@ -107,6 +107,8 @@ def make_parser(description, n_default=100, gif_flag=True):
         help="Episode horizon (default: 500)"
     )
     parser.add_argument("--gamma", type=float, default=GAMMA, help=f"--gamma the policy was trained with; also discounts the reported return (default: {GAMMA})")
+    parser.add_argument("--total-timesteps", type=parse_timesteps, default=DEFAULT_TOTAL_TIMESTEPS,
+                        help=f"--total-timesteps the policy was trained with, only for its file name (default: {DEFAULT_TOTAL_TIMESTEPS:,})")
     parser.add_argument("--beta", type=float, default=None,
                         help="--beta the policy was trained with, only for its file name: test episodes are unshaped (default: none)")
     parser.add_argument(

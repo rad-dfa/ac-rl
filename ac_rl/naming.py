@@ -3,12 +3,13 @@ always agree. A run name holds every setting that changes training, so distinct 
 and the same settings always give the same name:
 
   drone_seed_42_RAD_5_10_p0.5_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vel_steps500_g0.999
-       [_pbrs0.9][_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0]     train_drone_policy.py
+       [_total20000000][_pbrs0.9][_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0]     train_drone_policy.py
   token_seed_42_RAD_5_10_pNone_rad_shaped[_dynalpha]       train.py
 
 That is the env, seed, sampler, max DFA size, number of tokens, p (None: uniformly sampled DFA sizes), the encoder
 (pretrained RAD or trained from scratch) and the DFA reward (binary 1/0 or shaped +1/-1/0). Drone runs then add the
-env and PPO settings, PBRS's beta if the reward is shaped with PBRS, and PPO-Lagrangian's settings if --safe (no
+env and PPO settings, the total timesteps if not the default 1e7 (runs from before --total-timesteps keep their
+names), PBRS's beta if the reward is shaped with PBRS, and PPO-Lagrangian's settings if --safe (no
 --lambda-clip is written as its [0, inf) default). Samplers go by rad_embeddings' short names (R, RA, RAD, MIX), as
 in its encoder checkpoints, whichever alias was given. Floats are written as repr(float), which round-trips exactly.
 
@@ -19,12 +20,24 @@ import re
 from rad_embeddings.encoder import SAMPLERS, canonical_sampler
 
 # train_drone_policies.sh's settings shared by all of its runs (it varies seed, sampler, max_size, p, no_rad and
-# use_velocity_filter), to find its runs by name. Keep in sync with the script.
+# use_velocity_filter), to find its runs by name, with its PBRS beta (it also runs without PBRS, beta None). Keep in
+# sync with the script.
 DRONE_SWEEP = dict(
     binary_reward=False, x_low=-1.0, x_high=1.0, y_low=-1.0, y_high=1.0, z_low=-1.0, z_high=1.0, max_speed=1.0,
-    dt=0.1, use_displacement_action=False, max_steps_in_episode=500, gamma=0.999, beta=0.7,
+    dt=0.1, use_displacement_action=False, max_steps_in_episode=500, gamma=0.999, total_timesteps=20_000_000, beta=0.7,
     safe=True, delta=0.05, lambda_lr=0.05, lambda_warmup=0, lambda_init=1.0, lambda_every=1, lambda_clip=(0.0, 1.0),
 )
+
+# train_drone_policy.py's --total-timesteps default, left out of run names.
+DEFAULT_TOTAL_TIMESTEPS = 10_000_000
+
+
+def parse_timesteps(s):
+    """--total-timesteps' argparse type: a positive whole number of steps, also written like 2e7."""
+    steps = float(s)
+    if not (steps > 0 and steps == int(steps)):
+        raise ValueError(s)
+    return int(steps)
 
 
 def make_sampler(name, max_size, n_tokens, p):
@@ -50,6 +63,8 @@ def drone_run_settings(cfg):
         f"_z{num(cfg['z_low'])}_{num(cfg['z_high'])}_speed{num(cfg['max_speed'])}_dt{num(cfg['dt'])}"
         f"_{action}_steps{int(cfg['max_steps_in_episode'])}_g{num(cfg['gamma'])}"
     )
+    if int(cfg["total_timesteps"]) != DEFAULT_TOTAL_TIMESTEPS:
+        settings += f"_total{int(cfg['total_timesteps'])}"
     if cfg["beta"] is not None:
         settings += f"_pbrs{num(cfg['beta'])}"
     if cfg["safe"]:
@@ -91,7 +106,7 @@ _DRONE_RE = re.compile(
     rf"_p(?P<p>None|{_NUM})_(?P<encoder>rad|no_rad)_(?P<reward>binary|shaped)"
     rf"_x{_num('x_low')}_{_num('x_high')}_y{_num('y_low')}_{_num('y_high')}_z{_num('z_low')}_{_num('z_high')}"
     rf"_speed{_num('max_speed')}_dt{_num('dt')}_(?P<action>vel|vfilt|disp)_steps(?P<max_steps_in_episode>\d+)"
-    rf"_g{_num('gamma')}(?:_pbrs{_num('beta')})?"
+    rf"_g{_num('gamma')}(?:_total(?P<total_timesteps>\d+))?(?:_pbrs{_num('beta')})?"
     rf"(?P<safe>_safe_d{_num('delta')}_lr{_num('lambda_lr')}_w(?P<lambda_warmup>\d+)_l{_num('lambda_init')}"
     rf"_k(?P<lambda_every>\d+)_c{_num('clip_low')}_{_num('clip_high')})?"
 )
@@ -113,6 +128,7 @@ def parse_drone_run_name(run):
         binary_reward=g["reward"] == "binary",
         use_displacement_action=g["action"] == "disp",
         use_velocity_filter=g["action"] == "vfilt",
+        total_timesteps=DEFAULT_TOTAL_TIMESTEPS if g["total_timesteps"] is None else int(g["total_timesteps"]),
         beta=None if g["beta"] is None else float(g["beta"]),
         safe=g["safe"] is not None,
     )

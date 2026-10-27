@@ -15,7 +15,7 @@ from rad_embeddings import Encoder, EncoderModule
 from rad_embeddings.encoder import parse_p, canonical_sampler
 from dfa_gym import DroneEnv, DFAWrapper
 from flax.linen.initializers import constant, orthogonal
-from naming import make_sampler, drone_run_name, checkpoint_path, log_path
+from naming import make_sampler, drone_run_name, checkpoint_path, log_path, DEFAULT_TOTAL_TIMESTEPS, parse_timesteps
 
 
 class ActorCritic(nn.Module):
@@ -214,6 +214,8 @@ if __name__ == "__main__":
         help="Episode horizon (default: 500)"
     )
     parser.add_argument("--gamma", type=float, default=0.999, help="PPO discount factor, for rewards and --safe costs (default: 0.999)")
+    parser.add_argument("--total-timesteps", type=parse_timesteps, default=DEFAULT_TOTAL_TIMESTEPS,
+                        help=f"Environment steps to train for, e.g. 2e7 (default: {DEFAULT_TOTAL_TIMESTEPS:,})")
     parser.add_argument(
         "--beta",
         type=float,
@@ -239,7 +241,7 @@ if __name__ == "__main__":
         "LR": 3e-4,
         "NUM_ENVS": 16,
         "NUM_STEPS": 512,
-        "TOTAL_TIMESTEPS": 1e7,
+        "TOTAL_TIMESTEPS": args.total_timesteps,
         "UPDATE_EPOCHS": 4,
         "NUM_MINIBATCHES": 16,
         "GAMMA": args.gamma,
