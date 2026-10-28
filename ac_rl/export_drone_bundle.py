@@ -22,7 +22,7 @@ Writes under --out, replacing the policies/, dfas/ and reference/ files of an ea
   dfas/<name>.json              each task, with the policy's DFA inputs precomputed for every DFA state
   reference/rollouts.csv        each policy on each DFA in DroneEnv: the outcome of the deterministic (mean action)
                                 episode, and success/reject/timeout rates over --n episodes sampling actions
-  reference/<policy>_<dfa>.gif  the deterministic episodes
+  reference/<policy>_<dfa>.gif  with --gifs only: the deterministic episodes
 """
 import os
 import re
@@ -185,6 +185,9 @@ def main():
                         help="Output directory (default: storage/share/drone_rad_max_size5)")
     parser.add_argument("--n", type=int, default=100,
                         help="Episodes per policy and DFA for the sampled-action rates (default: 100)")
+    parser.add_argument("--gifs", action="store_true",
+                        help="Also draw the deterministic episodes as reference/<policy>_<dfa>.gif (tens of MB, so off by "
+                             "default; README.md doesn't list them)")
     args = parser.parse_args()
     for sub in ("policies", "dfas", "reference"):
         os.makedirs(os.path.join(args.out, sub), exist_ok=True)
@@ -279,9 +282,10 @@ def main():
             })
             print(", ".join(f"{k} {v}" for k, v in rows[-1].items()))
 
-            trace = [jax.tree_util.tree_map(lambda x: x[0, t], traj) for t in range(int(ep_len[0]) + 1)]
-            animate_drone_trace(env.env, trace, save_path=os.path.join(args.out, "reference", f"{name}_{dfa_name}.gif"),
-                                dfa=dfa)
+            if args.gifs:
+                trace = [jax.tree_util.tree_map(lambda x: x[0, t], traj) for t in range(int(ep_len[0]) + 1)]
+                animate_drone_trace(env.env, trace, dfa=dfa,
+                                    save_path=os.path.join(args.out, "reference", f"{name}_{dfa_name}.gif"))
 
     with open(os.path.join(args.out, "reference", "rollouts.csv"), "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0]))

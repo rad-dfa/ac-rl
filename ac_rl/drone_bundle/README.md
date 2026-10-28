@@ -30,7 +30,6 @@ This runs the policy on the example DFAs in a numpy copy of the training simulat
 | `env.json` | the training world: box, start state, step sizes, velocity-filter parameters, token regions |
 | `dfas/dfa_<i>.json` | the example tasks, with the policy's DFA inputs precomputed for every DFA state |
 | `reference/rollouts.csv` | how the policy does on each example DFA in the training simulator, in both modes |
-| `reference/<policy>_<dfa>.gif` | the deterministic episodes behind `rollouts.csv`: the trajectory and the DFA state |
 | `run_example.py` | reference implementation of the control loop below (numpy + onnxruntime), in both modes |
 
 ## Running a policy
