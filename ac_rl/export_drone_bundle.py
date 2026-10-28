@@ -9,14 +9,15 @@ The tasks are defined by hand in --dfas, a JSON list of DFAs over DroneEnv's tok
 with states 0-4 (the policies' max DFA size is 5). transitions[state][token] is the next state; any (state, token)
 not listed stays in its state, so a non-accepting state without transitions is a rejecting (failure) state.
 Accepting states can't have transitions: the task ends when one is reached. "note" is optional. The default
-drone_dfas.json holds the bundle's examples, drawn from the policies' training sampler (RAD, max size 5, p 0.5):
-the first PRNG keys whose DFA has a rejecting state, one DFA with 3 states, two with 4 and two with 5.
+drone_dfas.json holds the bundle's examples, written by hand.
 
-Writes under --out, replacing the dfas/ and reference/ files of an earlier run:
+Writes under --out, replacing the policies/, dfas/ and reference/ files of an earlier run:
   README.md, run_example.py     copied from drone_bundle/, where they are written by hand (README.md's result tables
                                 are filled in by hand from reference/rollouts.csv and test_drone_policy.py)
-  policies/<name>.onnx          export_onnx.py's model of each policy, checked against the JAX network
-  policies.json                 each policy's checkpoint and whether it acts through the velocity filter
+  policies/<name>.onnx          export_onnx.py's model of each policy, checked against the JAX network; it outputs
+                                the action mean and the policy's std, for acting deterministically or sampling
+  policies.json                 each policy's checkpoint, whether it acts through the velocity filter, max action
+                                and action std
   env.json                      DroneEnv's box, start state, step sizes, velocity-filter parameters and token regions
   dfas/<name>.json              each task, with the policy's DFA inputs precomputed for every DFA state
   reference/rollouts.csv        each policy on each DFA in DroneEnv: the outcome of the deterministic (mean action)
@@ -37,16 +38,14 @@ from dfax import DFAx
 from dfa_gym import animate_drone_trace
 from export_onnx import export
 from test_drone_policy import run_episodes
-from naming import DRONE_SWEEP, DEFAULT_TOTAL_TIMESTEPS, drone_run_name, checkpoint_path
+from naming import DRONE_SWEEP, drone_run_name, checkpoint_path
 
-# train_drone_policies.sh's runs (lambda_0 = 1, clip [0, 1], gamma 0.999, PBRS beta 0.7) with seed 42, the MIX
-# sampler, max size 5, p 0.5 and the pretrained RAD encoder, from before it went to 2e7 steps.
+# train_drone_policies.sh's best run (lambda_0 = 1, clip [0, 1], gamma 0.999, PBRS beta 0.7, 2e7 steps): seed 1, the
+# MIX sampler, max size 5, p None, the velocity filter and the pretrained RAD encoder.
 POLICIES = {
-    name: checkpoint_path("storage", drone_run_name(dict(
-        DRONE_SWEEP, seed=42, sampler="MIX", max_size=5, n_tokens=10, p=0.5, no_rad=False, use_velocity_filter=vfilt,
-        total_timesteps=DEFAULT_TOTAL_TIMESTEPS,
-    )))
-    for name, vfilt in (("rad_no_filter", False), ("rad_velocity_filter", True))
+    "rad_velocity_filter": checkpoint_path("storage", drone_run_name(dict(
+        DRONE_SWEEP, seed=1, sampler="MIX", max_size=5, n_tokens=10, p=None, no_rad=False, use_velocity_filter=True,
+    ))),
 }
 # The bundle's hand-written README.md and run_example.py.
 BUNDLE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "drone_bundle")
@@ -189,8 +188,10 @@ def main():
     args = parser.parse_args()
     for sub in ("policies", "dfas", "reference"):
         os.makedirs(os.path.join(args.out, sub), exist_ok=True)
-    # Drop an earlier run's tasks and results, so no file is left from a DFA that's no longer in --dfas.
-    for path in glob.glob(os.path.join(args.out, "dfas", "*.json")) + \
+    # Drop an earlier run's policies, tasks and results, so no file is left from a policy no longer in POLICIES or a
+    # DFA no longer in --dfas.
+    for path in glob.glob(os.path.join(args.out, "policies", "*.onnx")) + \
+            glob.glob(os.path.join(args.out, "dfas", "*.json")) + \
             glob.glob(os.path.join(args.out, "reference", "*.gif")) + \
             glob.glob(os.path.join(args.out, "reference", "rollouts.csv")):
         os.remove(path)
@@ -200,9 +201,10 @@ def main():
     policies = {}
     for name, ckpt_path in POLICIES.items():
         out_path = os.path.join(args.out, "policies", f"{name}.onnx")
-        cfg, env, network, params, d_action, d_value = export(ckpt_path, out_path)
-        print(f"{name}: {out_path} (max |Δ action_mean| {d_action:.1e}, max |Δ value| {d_value:.1e})")
-        assert max(d_action, d_value) < 1e-4
+        cfg, env, network, params, d_action, d_value, d_std = export(ckpt_path, out_path)
+        print(f"{name}: {out_path} (max |Δ action_mean| {d_action:.1e}, max |Δ value| {d_value:.1e}, "
+              f"max |Δ action_std| {d_std:.1e})")
+        assert max(d_action, d_value, d_std) < 1e-4
         # export() wraps the DFAWrapper in a LogWrapper; run_episodes needs the DFAWrapper itself.
         policies[name] = dict(cfg=cfg, env=env._env, network=network, params=params)
 
@@ -218,6 +220,8 @@ def main():
                 "checkpoint": os.path.basename(POLICIES[name]),
                 "velocity_filter": p["cfg"]["use_velocity_filter"],
                 "max_action": float(p["network"].max_action),
+                # The ONNX model's action_std output, constant
+                "action_std": np.exp(np.asarray(p["params"]["params"]["actor_logstd"], dtype=np.float32)).tolist(),
             }
             for name, p in policies.items()
         }))

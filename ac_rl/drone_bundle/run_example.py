@@ -1,9 +1,12 @@
 """Runs the policies on the example DFA tasks in a numpy copy of the training simulator, with only numpy and
-onnxruntime. Use it as a template for driving a policy (see README.md); its outcomes should match the
-deterministic ones in reference/rollouts.csv.
+onnxruntime. Use it as a template for driving a policy (see README.md). Acting with the action mean
+(deterministic, the default), its outcomes should match the deterministic ones in reference/rollouts.csv step for
+step. With --stochastic it samples actions as in training, and its rates should match the sampled ones there up to
+sampling noise (about +/- 0.1 over 100 episodes; numpy's random numbers aren't the training code's).
 
   python run_example.py                                    # every policy on every DFA
   python run_example.py --policy rad_velocity_filter --dfa dfas/dfa_3.json --trace trace.csv
+  python run_example.py --stochastic [--episodes 100] [--seed 0]
 """
 import os
 import csv
@@ -95,13 +98,22 @@ class Sim:
 
 
 class Policy:
-    def __init__(self, path, max_action):
+    """Acts with the action mean, or, given a numpy Generator `rng`, samples the Gaussian policy as in training."""
+
+    def __init__(self, path, max_action, rng=None):
         self.session = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
         self.max_action = max_action
+        self.rng = rng
 
     def __call__(self, obs, dfa_inputs):
-        (action,) = self.session.run(["action_mean"], {"obs": obs.astype(f32), **dfa_inputs})
-        return np.clip(action[0], -self.max_action, self.max_action)  # already in range; the simulator clips too
+        inputs = {"obs": obs.astype(f32), **dfa_inputs}
+        if self.rng is None:
+            (action,) = self.session.run(["action_mean"], inputs)
+            return np.clip(action[0], -self.max_action, self.max_action)  # already in range; the simulator clips too
+        mean, std = self.session.run(["action_mean", "action_std"], inputs)
+        # Fresh noise every step, independent per axis; the clip is what the training simulator did to every action.
+        action = mean[0] + std[0] * self.rng.standard_normal(3, dtype=f32)
+        return np.clip(action, -self.max_action, self.max_action)
 
 
 def policy_inputs(dfa):
@@ -139,14 +151,23 @@ def main():
     parser.add_argument("--policy", help="Policy name from policies.json (default: all)")
     parser.add_argument("--dfa", help="DFA file (default: all of dfas/)")
     parser.add_argument("--trace", help="Write the episode's per-step trace to this CSV (one policy and DFA only)")
+    parser.add_argument("--stochastic", action="store_true",
+                        help="Sample actions (action_mean + action_std * noise, clipped) instead of acting with the mean")
+    parser.add_argument("--episodes", type=int, default=None,
+                        help="--stochastic only: episodes per policy and DFA (default: 100)")
+    parser.add_argument("--seed", type=int, default=0, help="--stochastic only: seed of the action noise (default: 0)")
     args = parser.parse_args()
 
     env = load_json(os.path.join(HERE, "env.json"))
     policies = load_json(os.path.join(HERE, "policies.json"))
     names = [args.policy] if args.policy else list(policies)
     dfa_paths = [args.dfa] if args.dfa else sorted(glob.glob(os.path.join(HERE, "dfas", "*.json")))
-    if args.trace and len(names) * len(dfa_paths) != 1:
-        parser.error("--trace needs --policy and --dfa")
+    if args.episodes is not None and not args.stochastic:
+        parser.error("--episodes needs --stochastic: acting with the mean, every episode is the same")
+    # Acting with the mean, the policy and the simulator are deterministic, so one episode is the outcome.
+    episodes = (100 if args.episodes is None else args.episodes) if args.stochastic else 1
+    if args.trace and (len(names) * len(dfa_paths) != 1 or episodes != 1):
+        parser.error("--trace needs --policy and --dfa, and --episodes 1 with --stochastic")
 
     reference = {}
     reference_path = os.path.join(HERE, "reference", "rollouts.csv")
@@ -154,18 +175,32 @@ def main():
         with open(reference_path) as f:
             reference = {(r["policy"], r["dfa"]): r for r in csv.DictReader(f)}
 
+    rng = np.random.default_rng(args.seed) if args.stochastic else None
     for name in names:
         spec = policies[name]
-        policy = Policy(os.path.join(HERE, spec["file"]), spec["max_action"])
+        policy = Policy(os.path.join(HERE, spec["file"]), spec["max_action"], rng)
         for dfa_path in dfa_paths:
             dfa = load_json(dfa_path)
             trace = [] if args.trace else None
-            sim = Sim(env, spec["velocity_filter"])
-            outcome, steps = run_episode(policy, sim, dfa, env["max_steps_in_episode"], trace)
-            line = f"{name:20} {dfa['name']}: {outcome:7} after {steps:3} steps"
+            results = [
+                run_episode(policy, Sim(env, spec["velocity_filter"]), dfa, env["max_steps_in_episode"], trace)
+                for _ in range(episodes)
+            ]
             ref = reference.get((name, dfa["name"]))
-            if ref:
-                line += f"  (reference: {ref['deterministic_outcome']} after {ref['deterministic_steps']} steps)"
+            if args.stochastic:
+                outcomes = [outcome for outcome, _ in results]
+                rate = {o: outcomes.count(o) / episodes for o in ("accept", "reject", "timeout")}
+                line = (f"{name:20} {dfa['name']}: success {rate['accept']:.2f}, reject {rate['reject']:.2f}, "
+                        f"timeout {rate['timeout']:.2f}, mean {np.mean([steps for _, steps in results]):5.1f} steps "
+                        f"over {episodes} episodes")
+                if ref:
+                    line += (f"  (reference: success {ref['sampled_success']}, reject {ref['sampled_reject']}, "
+                             f"timeout {ref['sampled_timeout']}, mean {ref['sampled_mean_steps']} steps)")
+            else:
+                ((outcome, steps),) = results
+                line = f"{name:20} {dfa['name']}: {outcome:7} after {steps:3} steps"
+                if ref:
+                    line += f"  (reference: {ref['deterministic_outcome']} after {ref['deterministic_steps']} steps)"
             print(line)
             if trace is not None:
                 with open(args.trace, "w", newline="") as f:
