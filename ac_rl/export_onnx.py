@@ -29,6 +29,11 @@ CLAUDE.md's "Task setup" section for what these mean):
     value          float32[1]     -- critic value estimate
     cost_value     float32[1]     -- --safe checkpoints only: cost critic estimate
                                       (discounted probability of a DFA rejection)
+    action_std     float32[1,3]   -- the Gaussian policy's std, state-independent (exp(actor_logstd)), so a
+                                      constant; checked against the JAX distribution's too
+
+Acting as in training (sampling) instead of with the mean: action = clip(action_mean + action_std * eps,
+-max_action, max_action) with fresh eps ~ N(0, I) every step, the clip being what DroneEnv does to every action.
 
 `edge_index` is NOT an input: DFAx.to_graph() always builds it as the full
 max_size x max_size meshgrid, independent of the sampled DFA, so it's baked in
@@ -232,6 +237,7 @@ def get_weights(cfg, network, params):
         f"Dense_{i}": (w[f"params/Dense_{i}/kernel"], w[f"params/Dense_{i}/bias"])
         for i in range(n_dense)
     }
+    head["actor_logstd"] = w["params/actor_logstd"]
 
     if not cfg["no_rad"]:
         enc_flat = flatten_dict(network.encoder.encoder_params, sep="/")
@@ -365,10 +371,8 @@ def build_onnx_model(cfg, head_w, enc_w, max_action, action_dim):
     m = b.dense(m, w(k7, "d7_k"), w(bs7, "d7_b"))  # (1, action_dim)
     action_mean_out = b.mul(b.tanh(m), b.const(np.float32(max_action), name="max_action"))
 
-    outputs = [
-        helper.make_tensor_value_info(action_mean_out, TensorProto.FLOAT, [1, action_dim]),
-        helper.make_tensor_value_info(value_out, TensorProto.FLOAT, [1]),
-    ]
+    # (tensor, output name, shape)
+    outputs = [(action_mean_out, "action_mean", [1, action_dim]), (value_out, "value", [1])]
 
     if cfg["safe"]:
         k8, bs8 = head_w["Dense_8"]
@@ -377,13 +381,17 @@ def build_onnx_model(cfg, head_w, enc_w, max_action, action_dim):
         c = b.tanh(b.dense(feat, w(k8, "d8_k"), w(bs8, "d8_b")))
         c = b.tanh(b.dense(c, w(k9, "d9_k"), w(bs9, "d9_b")))
         c = b.dense(c, w(k10, "d10_k"), w(bs10, "d10_b"))  # (1, 1)
-        outputs.append(helper.make_tensor_value_info(b.squeeze(c, axes=[-1]), TensorProto.FLOAT, [1]))
+        outputs.append((b.squeeze(c, axes=[-1]), "cost_value", [1]))
+
+    # The Gaussian policy's std doesn't depend on the input, so it's a constant output, after the others so that
+    # they keep their positions.
+    action_std = np.exp(head_w["actor_logstd"].astype(np.float32)).reshape(1, action_dim)
+    outputs.append((b.const(action_std, name="action_std_const"), "action_std", [1, action_dim]))
 
     # Give the outputs stable names (the builder's are auto-numbered).
-    out_names = ["action_mean", "value", "cost_value"]
-    for out, name in zip(outputs, out_names):
-        b.nodes.append(helper.make_node("Identity", [out.name], [name]))
-        out.name = name
+    for out, name, _ in outputs:
+        b.nodes.append(helper.make_node("Identity", [out], [name]))
+    outputs = [helper.make_tensor_value_info(name, TensorProto.FLOAT, shape) for _, name, shape in outputs]
 
     graph = helper.make_graph(b.nodes, "drone_actor_critic", inputs, outputs, initializer=b.initializers)
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", OPSET)])
@@ -400,9 +408,11 @@ def build_onnx_model(cfg, head_w, enc_w, max_action, action_dim):
 # --------------------------------------------------------------------------
 def verify_onnx(onnx_path, network, params, env, n_trials=32, seed=0):
     sess = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
+    out_names = ["action_mean", "value", *(["cost_value"] if network.safe else []), "action_std"]
     key = jax.random.PRNGKey(seed)
     max_diff_action = 0.0
     max_diff_value = 0.0
+    max_diff_std = 0.0
     for t in range(n_trials):
         key, k_obs, k_dfa, k_word = jax.random.split(key, 4)
         obs_sample = env.observation_space(env.agents[0]).sample(k_obs)
@@ -426,21 +436,23 @@ def verify_onnx(onnx_path, network, params, env, n_trials=32, seed=0):
             "current_state": np.asarray(graph["current_state"], dtype=np.int64),
             "n_states": np.asarray(graph["n_states"], dtype=np.int64),
         }
-        onnx_out = sess.run(None, onnx_inputs)
+        onnx_out = dict(zip(out_names, sess.run(out_names, onnx_inputs)))
         # --safe networks stack (value, cost value) as value[..., :2]; the ONNX model returns them separately.
-        value_onnx = np.stack(onnx_out[1:], axis=-1) if network.safe else onnx_out[1]
+        value_onnx = np.stack([onnx_out["value"], onnx_out["cost_value"]], axis=-1) if network.safe else onnx_out["value"]
+        pi, _ = network.clone(deterministic=False).apply(params, obs_sample)
 
-        max_diff_action = max(max_diff_action, float(np.max(np.abs(action_mean_jax - onnx_out[0]))))
+        max_diff_action = max(max_diff_action, float(np.max(np.abs(action_mean_jax - onnx_out["action_mean"]))))
         max_diff_value = max(max_diff_value, float(np.max(np.abs(value_jax - value_onnx))))
+        max_diff_std = max(max_diff_std, float(np.max(np.abs(np.asarray(pi.stddev()) - onnx_out["action_std"]))))
 
-    return max_diff_action, max_diff_value
+    return max_diff_action, max_diff_value, max_diff_std
 
 
 def export(ckpt_path, out_path):
     """Exports one checkpoint to out_path and checks it against the JAX network.
 
-    Returns (cfg, env, network, params, max |Δ action_mean|, max |Δ value|), the value diff covering the cost value
-    of --safe checkpoints too.
+    Returns (cfg, env, network, params, max |Δ action_mean|, max |Δ value|, max |Δ action_std|), the value diff
+    covering the cost value of --safe checkpoints too.
     """
     cfg, env, network, params, init_x = build_network_and_params(ckpt_path)
     head_w, enc_w = get_weights(cfg, network, params)
@@ -448,8 +460,7 @@ def export(ckpt_path, out_path):
     model = build_onnx_model(cfg, head_w, enc_w, network.max_action, network.action_dim)
     onnx.save(model, out_path)
 
-    max_diff_action, max_diff_value = verify_onnx(out_path, network, params, env)
-    return cfg, env, network, params, max_diff_action, max_diff_value
+    return cfg, env, network, params, *verify_onnx(out_path, network, params, env)
 
 
 def main():
@@ -467,16 +478,17 @@ def main():
         fname = os.path.basename(ckpt_path)
         print(f"\n=== {fname} ===")
         out_path = os.path.join(args.out_dir, fname.replace(".msgpack", ".onnx"))
-        *_, max_diff_action, max_diff_value = export(ckpt_path, out_path)
+        *_, max_diff_action, max_diff_value, max_diff_std = export(ckpt_path, out_path)
         print(f"  saved: {out_path}")
-        print(f"  max |Δ action_mean| = {max_diff_action:.3e}, max |Δ value| = {max_diff_value:.3e}")
-        results.append((fname, max_diff_action, max_diff_value))
+        print(f"  max |Δ action_mean| = {max_diff_action:.3e}, max |Δ value| = {max_diff_value:.3e}, "
+              f"max |Δ action_std| = {max_diff_std:.3e}")
+        results.append((fname, max_diff_action, max_diff_value, max_diff_std))
 
     print("\n=== summary ===")
     worst = 0.0
-    for fname, da, dv in results:
-        worst = max(worst, da, dv)
-        print(f"{fname:95} action_diff={da:.3e} value_diff={dv:.3e}")
+    for fname, da, dv, ds in results:
+        worst = max(worst, da, dv, ds)
+        print(f"{fname:95} action_diff={da:.3e} value_diff={dv:.3e} std_diff={ds:.3e}")
     print(f"\nworst max-abs-diff across all checkpoints: {worst:.3e}")
 
 
