@@ -153,7 +153,9 @@ def plot_grid(configs, metric, delta, path):
     # Only rows and columns with at least one run, e.g. a max-size-5-only sweep gets no max-size-10 column.
     samplers = [s for s in SAMPLERS if any(c[0] == s for c in configs)]
     columns = [col for col in COLUMNS if any(c[1:] == col for c in configs)]
-    fig, axes = plt.subplots(len(samplers), len(columns), figsize=(3.4 * len(columns), 2.6 * len(samplers) + 0.9),
+    # At least wide enough for the title and legend, e.g. for a single-config sweep.
+    fig, axes = plt.subplots(len(samplers), len(columns),
+                             figsize=(max(3.4 * len(columns), 6.4), 2.6 * len(samplers) + 0.9),
                              sharex=True, sharey=metric not in UNSHARED, squeeze=False)
     notes = []
     for row, sampler in enumerate(samplers):

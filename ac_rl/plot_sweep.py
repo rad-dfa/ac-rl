@@ -11,8 +11,11 @@ A log without a checkpoint (interrupted or still running) is plotted up to where
 Returns and success/rejection rates are of the unshaped reward (wrappers.py), so they compare across betas; the losses
 are of the shaped one and don't.
 
+--total-timesteps picks runs of another length instead, e.g. 2e7 for train_drone_policies.sh's beta 0.7 vs no PBRS.
+
   uv run plot_sweep.py --vary beta
   uv run plot_sweep.py --vary delta
+  uv run plot_sweep.py --vary beta --total-timesteps 2e7 --out storage/plots/drone_policies_20M/pbrs_vs_no_pbrs
 """
 import os
 import glob
@@ -21,7 +24,8 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from naming import DRONE_SWEEP, DEFAULT_TOTAL_TIMESTEPS, drone_run_name, drone_run_settings, checkpoint_path, parse_log_name
+from naming import (DRONE_SWEEP, DEFAULT_TOTAL_TIMESTEPS, drone_run_name, drone_run_settings, checkpoint_path,
+                    parse_log_name, parse_timesteps)
 from plot_drone_policies import (LABELS, UNSHARED, SUMMARY_METRICS, METHODS, SURFACE, INK, INK_2, MUTED,
                                  clip_rate_axis, delta_handle)
 
@@ -39,13 +43,14 @@ SWEEPS = {
 }
 
 
-def load_runs(storage, vary):
+def load_runs(storage, vary, total_timesteps):
     """{"rad"/"no_rad": {value of vary: {"df": per-timestep mean/std over seeds, "seeds", "incomplete"}}}"""
+    base = dict(BASE, total_timesteps=total_timesteps)
     grouped = {}
     for path in sorted(glob.glob(os.path.join(storage, "logs", "log_drone_*.csv"))):
         cfg = parse_log_name(path)
         if (cfg is None or (cfg["sampler"], cfg["max_size"], cfg["p"]) != (SAMPLER, MAX_SIZE, P)
-                or drone_run_settings(cfg) != drone_run_settings(dict(BASE, **{vary: cfg.get(vary)}))):
+                or drone_run_settings(cfg) != drone_run_settings(dict(base, **{vary: cfg.get(vary)}))):
             continue
         ckpt = checkpoint_path(storage, drone_run_name(cfg))
         runs = grouped.setdefault("no_rad" if cfg["no_rad"] else "rad", {}).setdefault(cfg[vary], [])
@@ -178,17 +183,21 @@ def main():
     parser.add_argument("--vary", choices=list(SWEEPS), default="beta", help="Swept setting (default: beta)")
     parser.add_argument("--storage", default="storage", help="--save-dir of the runs; their CSV logs are read from {storage}/logs (default: storage)")
     parser.add_argument("--out", default=None, help="Output directory (default: storage/plots/{vary}_sweep)")
+    parser.add_argument("--total-timesteps", type=parse_timesteps, default=DEFAULT_TOTAL_TIMESTEPS,
+                        help="Training steps of the runs, e.g. 2e7 for train_drone_policies.sh's beta 0.7 vs no PBRS "
+                             f"runs (default: {DEFAULT_TOTAL_TIMESTEPS:.0e}, the sweeps')")
     parser.add_argument("--last", type=int, default=50, help="Updates averaged in summary.csv (default: 50)")
     parser.add_argument("--format", default="pdf", help="Figure file format (default: pdf)")
     args = parser.parse_args()
     out = args.out or os.path.join("storage", "plots", f"{args.vary}_sweep")
 
-    methods = load_runs(args.storage, args.vary)
+    methods = load_runs(args.storage, args.vary, args.total_timesteps)
     if not methods:
         parser.error(f"no logs in {args.storage}/logs match the {args.vary} sweep's settings")
     # The settings held fixed, the other of beta and delta among them
     fixed = {"beta": f"δ = {BASE['delta']:g}", "delta": f"β = {BASE['beta']:g}"}[args.vary]
-    config = f"Mixture · max size {MAX_SIZE} · p = {P} · velocity filter · {fixed}"
+    config = (f"Mixture · max size {MAX_SIZE} · p = {P} · velocity filter · {fixed} · "
+              f"{args.total_timesteps / 1e6:g}M steps")
     sweep = SWEEPS[args.vary]["name"]
     metrics = next(iter(next(iter(methods.values())).values()))["df"].columns.get_level_values(0).unique()
 
