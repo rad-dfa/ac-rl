@@ -1,0 +1,135 @@
+nohup: ignoring input
+[1/20] seed 1 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.556, reject 0.043, timeout 0.401, ep_len 240.709, disc_return 0.479 (31s)
+[2/20] seed 1 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.560, reject 0.069, timeout 0.371, ep_len 223.714, disc_return 0.460 (18s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=1; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 1).
+  warnings.warn(
+[3/20] seed 1 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.909, reject 0.063, timeout 0.028, ep_len 66.934, disc_return 0.804 (26s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=1; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 1).
+  warnings.warn(
+[4/20] seed 1 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.662, reject 0.101, timeout 0.237, ep_len 178.309, disc_return 0.518 (18s)
+[5/20] seed 2 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.535, reject 0.057, timeout 0.408, ep_len 244.084, disc_return 0.444 (18s)
+[6/20] seed 2 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.478, reject 0.011, timeout 0.511, ep_len 287.613, disc_return 0.438 (17s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=2; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 2).
+  warnings.warn(
+[7/20] seed 2 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.823, reject 0.091, timeout 0.086, ep_len 94.619, disc_return 0.693 (18s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=2; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 2).
+  warnings.warn(
+[8/20] seed 2 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.795, reject 0.087, timeout 0.118, ep_len 117.003, disc_return 0.663 (17s)
+[9/20] seed 3 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.562, reject 0.051, timeout 0.387, ep_len 232.902, disc_return 0.478 (17s)
+[10/20] seed 3 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.583, reject 0.083, timeout 0.334, ep_len 225.974, disc_return 0.472 (17s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=3; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 3).
+  warnings.warn(
+[11/20] seed 3 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.926, reject 0.051, timeout 0.023, ep_len 63.441, disc_return 0.835 (17s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=3; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 3).
+  warnings.warn(
+[12/20] seed 3 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.839, reject 0.093, timeout 0.068, ep_len 89.432, disc_return 0.706 (18s)
+[13/20] seed 4 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.521, reject 0.030, timeout 0.449, ep_len 261.945, disc_return 0.459 (18s)
+[14/20] seed 4 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.482, reject 0.028, timeout 0.490, ep_len 289.724, disc_return 0.415 (18s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=4; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 4).
+  warnings.warn(
+[15/20] seed 4 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.881, reject 0.071, timeout 0.048, ep_len 77.593, disc_return 0.769 (18s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=4; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 4).
+  warnings.warn(
+[16/20] seed 4 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.856, reject 0.077, timeout 0.067, ep_len 82.330, disc_return 0.744 (17s)
+[17/20] seed 5 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.541, reject 0.055, timeout 0.404, ep_len 242.984, disc_return 0.459 (18s)
+[18/20] seed 5 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.540, reject 0.080, timeout 0.380, ep_len 238.647, disc_return 0.424 (17s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=5; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 5).
+  warnings.warn(
+[19/20] seed 5 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.880, reject 0.080, timeout 0.040, ep_len 73.411, disc_return 0.758 (17s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=5; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 5).
+  warnings.warn(
+[20/20] seed 5 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.789, reject 0.095, timeout 0.116, ep_len 115.016, disc_return 0.652 (18s)
+                                                                                                                                                           config     seeds  success_mean  success_std  reject_mean  reject_std  timeout_mean  timeout_std  ep_len_mean  ep_len_std  disc_return_mean  disc_return_std
+drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0 1 2 3 4 5         0.543        0.016        0.047       0.011         0.410        0.023      244.525      10.673             0.464            0.015
+        drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0 1 2 3 4 5         0.529        0.047        0.054       0.033         0.417        0.078      253.134      32.942             0.442            0.024
+   drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0 1 2 3 4 5         0.884        0.039        0.071       0.015         0.045        0.025       75.200      12.172             0.772            0.054
+           drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0 1 2 3 4 5         0.788        0.076        0.091       0.009         0.121        0.069      116.418      37.825             0.657            0.086
+
+20 checkpoints, 4 configs, 1000 episodes each -> storage/test/drone_policies
+[1/20] seed 1 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.534, reject 0.027, timeout 0.439, ep_len 252.036, disc_return 0.479 (30s)
+[2/20] seed 1 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.543, reject 0.065, timeout 0.392, ep_len 229.811, disc_return 0.451 (17s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=1; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 1).
+  warnings.warn(
+[3/20] seed 1 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.854, reject 0.063, timeout 0.083, ep_len 81.737, disc_return 0.758 (26s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=1; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 1).
+  warnings.warn(
+[4/20] seed 1 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.645, reject 0.091, timeout 0.264, ep_len 183.007, disc_return 0.517 (17s)
+[5/20] seed 2 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.504, reject 0.046, timeout 0.450, ep_len 257.297, disc_return 0.429 (16s)
+[6/20] seed 2 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.486, reject 0.005, timeout 0.509, ep_len 281.710, disc_return 0.456 (17s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=2; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 2).
+  warnings.warn(
+[7/20] seed 2 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.762, reject 0.077, timeout 0.161, ep_len 116.021, disc_return 0.657 (18s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=2; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 2).
+  warnings.warn(
+[8/20] seed 2 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.756, reject 0.082, timeout 0.162, ep_len 123.184, disc_return 0.641 (17s)
+[9/20] seed 3 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.565, reject 0.043, timeout 0.392, ep_len 229.835, disc_return 0.493 (17s)
+[10/20] seed 3 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.538, reject 0.035, timeout 0.427, ep_len 250.527, disc_return 0.477 (17s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=3; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 3).
+  warnings.warn(
+[11/20] seed 3 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.892, reject 0.037, timeout 0.071, ep_len 72.038, disc_return 0.823 (16s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=3; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 3).
+  warnings.warn(
+[12/20] seed 3 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.810, reject 0.082, timeout 0.108, ep_len 96.485, disc_return 0.695 (17s)
+[13/20] seed 4 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.511, reject 0.037, timeout 0.452, ep_len 254.228, disc_return 0.449 (17s)
+[14/20] seed 4 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.463, reject 0.022, timeout 0.515, ep_len 297.157, disc_return 0.406 (17s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=4; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 4).
+  warnings.warn(
+[15/20] seed 4 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.840, reject 0.062, timeout 0.098, ep_len 87.492, disc_return 0.746 (16s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=4; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 4).
+  warnings.warn(
+[16/20] seed 4 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.831, reject 0.073, timeout 0.096, ep_len 84.492, disc_return 0.729 (17s)
+[17/20] seed 5 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.527, reject 0.029, timeout 0.444, ep_len 254.453, disc_return 0.470 (16s)
+[18/20] seed 5 drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.502, reject 0.061, timeout 0.437, ep_len 255.177, disc_return 0.413 (17s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=5; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 5).
+  warnings.warn(
+[19/20] seed 5 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.837, reject 0.069, timeout 0.094, ep_len 85.205, disc_return 0.738 (17s)
+/home/beyazityk/rad-dfa/rad-embeddings/rad_embeddings/encoder.py:413: UserWarning: No pretrained encoder with n_tokens=10, binary_reward=False, gamma=0.9, sampler='MIX', p=None, max_size=5, seed=5; falling back to encoder_params_max_size_5_n_tokens_10_seed_42_binary_reward_False_gamma_0.9_sampler_MIX_p_None.msgpack (seed 42 instead of 5).
+  warnings.warn(
+[20/20] seed 5 drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0
+    success 0.732, reject 0.084, timeout 0.184, ep_len 130.780, disc_return 0.618 (17s)
+                                                                                                                                                           config     seeds  success_mean  success_std  reject_mean  reject_std  timeout_mean  timeout_std  ep_len_mean  ep_len_std  disc_return_mean  disc_return_std
+drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0 1 2 3 4 5         0.528        0.024        0.036       0.008         0.435        0.025      249.570      11.189             0.464            0.025
+        drone_MIX_5_10_pNone_no_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0 1 2 3 4 5         0.506        0.034        0.038       0.026         0.456        0.054      262.876      26.622             0.441            0.030
+   drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_pbrs0.7_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0 1 2 3 4 5         0.837        0.047        0.062       0.015         0.101        0.035       88.499      16.477             0.745            0.059
+           drone_MIX_5_10_pNone_rad_shaped_x-1.0_1.0_y-1.0_1.0_z-1.0_1.0_speed1.0_dt0.1_vfilt_steps500_g0.999_total20000000_safe_d0.05_lr0.05_w0_l1.0_k1_c0.0_1.0 1 2 3 4 5         0.755        0.073        0.082       0.006         0.163        0.067      123.590      38.228             0.640            0.081
+
+20 checkpoints, 4 configs, 1000 episodes each -> storage/test/drone_policies_det
