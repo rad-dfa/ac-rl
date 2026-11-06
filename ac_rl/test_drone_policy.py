@@ -106,6 +106,9 @@ def make_parser(description, n_default=100, gif_flag=True):
         default=500,
         help="Episode horizon (default: 500)"
     )
+    parser.add_argument("--obs-noise-std", type=float, nargs=2, metavar=("POS", "VEL"), default=None,
+                        help="--obs-noise-std the policy was trained with; test episodes get the same observation noise "
+                             "(default: no noise)")
     parser.add_argument("--gamma", type=float, default=GAMMA, help=f"--gamma the policy was trained with; also discounts the reported return (default: {GAMMA})")
     parser.add_argument("--total-timesteps", type=parse_timesteps, default=DEFAULT_TOTAL_TIMESTEPS,
                         help=f"--total-timesteps the policy was trained with, only for its file name (default: {DEFAULT_TOTAL_TIMESTEPS:,})")
@@ -167,6 +170,7 @@ def setup(args):
         use_displacement_action=args.use_displacement_action,
         use_velocity_filter=args.use_velocity_filter,
         max_steps_in_episode=args.max_steps_in_episode,
+        obs_noise_std=tuple(args.obs_noise_std) if args.obs_noise_std else 0.0,
     )
 
     # --eval-sampler/--eval-p only change the test tasks; the training ones still pick the encoder and name.

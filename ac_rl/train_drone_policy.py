@@ -213,6 +213,15 @@ if __name__ == "__main__":
         default=500,
         help="Episode horizon (default: 500)"
     )
+    parser.add_argument(
+        "--obs-noise-std",
+        type=float,
+        nargs=2,
+        metavar=("POS", "VEL"),
+        default=None,
+        help="Std of DroneEnv's observation noise on position and velocity: fresh Gaussian noise every step, "
+             "truncated to +-3 std; the dynamics and labels use the true state (default: no noise)"
+    )
     parser.add_argument("--gamma", type=float, default=0.999, help="PPO discount factor, for rewards and --safe costs (default: 0.999)")
     parser.add_argument("--total-timesteps", type=parse_timesteps, default=DEFAULT_TOTAL_TIMESTEPS,
                         help=f"Environment steps to train for, e.g. 2e7 (default: {DEFAULT_TOTAL_TIMESTEPS:,})")
@@ -280,6 +289,7 @@ if __name__ == "__main__":
         use_displacement_action=args.use_displacement_action,
         use_velocity_filter=args.use_velocity_filter,
         max_steps_in_episode=args.max_steps_in_episode,
+        obs_noise_std=tuple(args.obs_noise_std) if args.obs_noise_std else 0.0,
     )
 
     sampler = make_sampler(args.sampler, args.max_size, drone_env.n_tokens, args.p)
