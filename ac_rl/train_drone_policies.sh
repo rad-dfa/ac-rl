@@ -5,16 +5,17 @@
 #
 #   observation noise  none, or --obs-noise-std 0.02 0.1 (position and velocity std)
 #   arm                shaped:  PPO on the shaped +1/-1/0 DFA reward
-#                      binary:  PPO on the binary 1/0 DFA reward (--binary-reward)
 #                      safe_l0: PPO-Lagrangian (--safe) with delta 0.05, lambda learned from 0 (lr 0.05, no warm-up,
 #                               unclipped, i.e. in [0, inf))
-#                      safe_l1: the same with lambda learned from 1
 #   PBRS               beta 0.7, or none
 #   encoder            pretrained RAD, or trained from scratch (--no-rad)
 #
-# for 5 x 2 x 4 x 2 x 2 = 160 runs, seeds outermost, so a partial sweep has every config for its first seeds.
-# naming.py's DRONE_SWEEP lists the settings shared by all runs, with the reference arm's values (no noise, safe_l1,
-# beta 0.7) for the varied ones; keep the two in sync. Arguments are passed on to every train_drone_policy.py call, e.g.
+# for 5 x 2 x 2 x 2 x 2 = 80 runs, seeds outermost, so a partial sweep has every config for its first seeds.
+# Until 2026-11-10 it also had a binary arm (PPO on the binary 1/0 DFA reward, --binary-reward) and a safe_l1 arm
+# (safe_l0 with lambda learned from 1), for 160 runs; they were dropped after seed 1, whose runs of them are kept.
+# naming.py's DRONE_SWEEP lists the settings shared by all runs, with the reference arm's values (no noise, safe_l0,
+# beta 0.7) for the varied ones, and DRONE_SWEEP_NOISES, DRONE_SWEEP_ARMS and DRONE_SWEEP_BETAS the noises, arms and
+# betas below; keep them in sync. Arguments are passed on to every train_drone_policy.py call, e.g.
 #
 #   ./train_drone_policies.sh --wandb
 #   ./train_drone_policies.sh --save-dir storage/final
@@ -32,6 +33,10 @@
 # after an interruption resumes training. A run interrupted mid-training leaves a log without a checkpoint; it is reported
 # as failed until that log is deleted.
 #
+# Plot the training logs of every config, finished or not, with
+#
+#   uv run plot_drone_grid.py
+#
 # Then test the policies (each under the observation noise it was trained with) with
 #
 #   uv run test_drone_policies.py storage/models/*.msgpack
@@ -41,7 +46,7 @@ cd "$(dirname "$0")"
 
 seeds=(1 2 3 4 5)
 noises=(None "0.02 0.1")
-arms=(shaped binary safe_l0 safe_l1)
+arms=(shaped safe_l0)
 betas=(0.7 None)
 rad_flags=("" --no-rad)
 
@@ -49,9 +54,7 @@ rad_flags=("" --no-rad)
 arm_flags() {
     case "$1" in
         shaped) ;;
-        binary) echo --binary-reward ;;
         safe_l0) echo --safe --delta 0.05 --lambda-lr 0.05 --lambda-warmup 0 --lambda-init 0 ;;
-        safe_l1) echo --safe --delta 0.05 --lambda-lr 0.05 --lambda-warmup 0 --lambda-init 1 ;;
         *) echo "Unknown arm: $1" >&2; return 1 ;;
     esac
 }

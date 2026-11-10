@@ -24,14 +24,24 @@ from rad_embeddings.encoder import SAMPLERS, canonical_sampler
 # ones callers pick (seed, sampler, max_size, p, no_rad and use_velocity_filter), and its reference arm's values for
 # the ones it varies:
 # no observation noise (it also runs with --obs-noise-std 0.02 0.1), PBRS beta 0.7 (also without PBRS, beta None),
-# shaped reward and --safe with lambda learned from 1 (also unsafe with shaped or binary rewards, and --safe with lambda
-# learned from 0). Keep in sync with the script.
+# shaped reward and --safe with lambda learned from 0 (also unsafe with the shaped reward). Keep in sync with the
+# script. Until 2026-11-10 the reference arm learned lambda from 1, an arm the script dropped then.
 DRONE_SWEEP = dict(
     binary_reward=False, x_low=-1.0, x_high=1.0, y_low=-1.0, y_high=1.0, z_low=-1.0, z_high=1.0, max_speed=1.0,
     dt=0.1, use_displacement_action=False, max_steps_in_episode=500, obs_noise_std=None, gamma=0.999,
-    total_timesteps=20_000_000, beta=0.7, safe=True, delta=0.05, lambda_lr=0.05, lambda_warmup=0, lambda_init=1.0,
+    total_timesteps=20_000_000, beta=0.7, safe=True, delta=0.05, lambda_lr=0.05, lambda_warmup=0, lambda_init=0.0,
     lambda_every=1, lambda_clip=None,
 )
+
+# The values train_drone_policies.sh varies besides the seed and encoder, as overrides of DRONE_SWEEP: its observation
+# noises, its arms (arm_flags) and its PBRS betas. Keep in sync with the script, too. Its dropped arms (2026-11-10, run
+# for seed 1 only) were binary, dict(binary_reward=True, safe=False), and safe_l1, safe_l0 with lambda_init=1.0.
+DRONE_SWEEP_NOISES = [None, (0.02, 0.1)]
+DRONE_SWEEP_ARMS = {
+    "shaped": dict(binary_reward=False, safe=False),
+    "safe_l0": dict(binary_reward=False, safe=True, lambda_init=0.0),
+}
+DRONE_SWEEP_BETAS = [0.7, None]
 
 # train_drone_policy.py's --total-timesteps default, left out of run names.
 DEFAULT_TOTAL_TIMESTEPS = 10_000_000
