@@ -1,12 +1,15 @@
 """Runs the policies on the example DFA tasks in a numpy copy of the training simulator, with only numpy and
-onnxruntime. Use it as a template for driving a policy (see README.md). Acting with the action mean
-(deterministic, the default), its outcomes should match the deterministic ones in reference/rollouts.csv step for
-step. With --stochastic it samples actions as in training, and its rates should match the sampled ones there up to
-sampling noise (about +/- 0.1 over 100 episodes; numpy's random numbers aren't the training code's).
+onnxruntime. Use it as a template for driving a policy (see README.md).
+
+Acting with the action mean (the default) without observation noise, the policy and the simulator are deterministic:
+each episode should match the one in reference/rollouts.csv step for step. With --stochastic (sample actions as in
+training) and/or --obs-noise (add the observation noise of env.json, as in the training of rad_obs_noise), it runs
+--episodes episodes and its outcome rates should match the reference ones up to sampling noise (about +/- 0.1 over 100
+episodes; numpy's random numbers aren't the training code's).
 
   python run_example.py                                    # every policy on every DFA
-  python run_example.py --policy rad_velocity_filter --dfa dfas/dfa_3.json --trace trace.csv
-  python run_example.py --stochastic [--episodes 100] [--seed 0]
+  python run_example.py --policy rad --dfa dfas/dfa_3.json --trace trace.csv
+  python run_example.py --stochastic [--obs-noise] [--episodes 100] [--seed 0]
 """
 import os
 import csv
@@ -19,6 +22,7 @@ import onnxruntime as ort
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 f32 = np.float32  # The simulator ran in float32.
+OUTCOMES = {"accept": "success", "reject": "reject", "out_of_bounds": "out_of_bounds", "timeout": "timeout"}
 
 
 def load_json(path):
@@ -26,10 +30,23 @@ def load_json(path):
         return json.load(f)
 
 
-class Sim:
-    """The training simulator (dfa_gym's DroneEnv) for one drone."""
+def truncated_normal(rng, size, bound):
+    """Standard normal samples conditioned on [-bound, bound], by redrawing the ones outside."""
+    x = rng.standard_normal(size, dtype=f32)
+    outside = np.abs(x) > bound
+    while outside.any():
+        x[outside] = rng.standard_normal(int(outside.sum()), dtype=f32)
+        outside = np.abs(x) > bound
+    return x
 
-    def __init__(self, env, velocity_filter):
+
+class Sim:
+    """The training simulator (dfa_gym's DroneEnv) for one drone. There are no walls: leaving the box ends the episode.
+
+    With a numpy Generator `noise_rng`, observations get env.json's observation noise; the dynamics and the regions
+    always use the true state."""
+
+    def __init__(self, env, velocity_filter, noise_rng=None):
         self.low = np.array(env["box"]["low"], dtype=f32)
         self.high = np.array(env["box"]["high"], dtype=f32)
         self.dt = env["dt"]
@@ -40,21 +57,29 @@ class Sim:
         self.n_substeps = math.ceil(self.dt / env["velocity_filter"]["filter_dt"])
         self.h = self.dt / self.n_substeps
         self.regions = env["regions"]
+        noise = env["obs_noise"]
+        self.noise_rng = noise_rng
+        self.noise_std = np.array([noise["std_position"]] * 3 + [noise["std_velocity"]] * 3, dtype=f32)
+        self.noise_bound = noise["truncate_sigmas"]
         self.p = np.array(env["start"]["position"], dtype=f32)
         self.v = np.array(env["start"]["velocity"], dtype=f32)
         self.a = np.zeros(3, dtype=f32)  # velocity filter state; not observed by the policy
         self.prev_p = self.p  # position one step earlier, so a token only fires on entering its region
 
     def obs(self):
-        return np.concatenate([self.p, self.v])
+        """The policy's observation: position and velocity, plus fresh noise if the sim has noise."""
+        obs = np.concatenate([self.p, self.v])
+        if self.noise_rng is not None:
+            obs = obs + self.noise_std * truncated_normal(self.noise_rng, 6, self.noise_bound)
+        return obs
 
     def step(self, action):
         self.prev_p = self.p
         if not self.velocity_filter:
-            # The action is a velocity, held for dt and stopped by the box; the observed velocity is the achieved one.
-            p = np.clip(self.p + action * f32(self.dt), self.low, self.high)
-            self.v = (p - self.p) / f32(self.dt)
-            self.p = p
+            # The action is a velocity held for dt; the observed velocity is the achieved one.
+            delta = action * f32(self.dt)
+            self.p = self.p + delta
+            self.v = delta / f32(self.dt)
             return
         # The action, scaled by max_speed, is the target velocity of a critically damped second-order filter, held
         # for dt and integrated in substeps of h, with the acceleration's norm limited to max_accel.
@@ -67,13 +92,13 @@ class Sim:
             if norm > self.max_accel:
                 a_next = a_next * (f32(self.max_accel) / norm)
             v_next = v + f32(self.h) * a_next
-            p_next = p + f32(0.5 * self.h) * (v + v_next)
-            # An axis at (or pushed past) a wall while moving into it is stopped there.
-            pinned = ((p_next <= self.low) & (v_next < 0)) | ((p_next >= self.high) & (v_next > 0))
-            p = np.clip(p_next, self.low, self.high)
-            v = np.where(pinned, f32(0), v_next)
-            a = np.where(pinned, f32(0), a_next)
+            p = p + f32(0.5 * self.h) * (v + v_next)
+            v, a = v_next, a_next
         self.p, self.v, self.a = p, v, a
+
+    def out_of_bounds(self):
+        """Whether the drone has left the box (strictly), which ended the episode in training."""
+        return bool(np.any((self.p < self.low) | (self.p > self.high)))
 
     def label(self):
         """Token of the region the last step entered, or -1. A token fires only on the step the drone moves into its
@@ -130,19 +155,23 @@ def policy_inputs(dfa):
 
 
 def run_episode(policy, sim, dfa, max_steps, trace=None):
-    """Returns (outcome, steps): outcome "accept", "reject" or "timeout"."""
+    """Returns (outcome, steps), outcome a key of OUTCOMES."""
     inputs = policy_inputs(dfa)
     q = dfa["start"]
     for t in range(1, max_steps + 1):
-        action = policy(sim.obs(), inputs[q])
+        obs = sim.obs()
+        action = policy(obs, inputs[q])
         sim.step(action)
         token = sim.label()
         if token >= 0:
             q = dfa["transitions"][q][token]
         if trace is not None:
-            trace.append([t, *sim.p.tolist(), *sim.v.tolist(), *action.tolist(), token, q])
+            trace.append([t, *sim.p.tolist(), *sim.v.tolist(), *obs.tolist(), *action.tolist(), token, q])
+        # As in training, the DFA's acceptance or rejection counts even on the step the drone leaves the box.
         if dfa["status"][q] != "running":
             return dfa["status"][q], t
+        if sim.out_of_bounds():
+            return "out_of_bounds", t
     return "timeout", max_steps
 
 
@@ -150,63 +179,70 @@ def main():
     parser = argparse.ArgumentParser(description="Run the ONNX drone policies on the example DFA tasks")
     parser.add_argument("--policy", help="Policy name from policies.json (default: all)")
     parser.add_argument("--dfa", help="DFA file (default: all of dfas/)")
-    parser.add_argument("--trace", help="Write the episode's per-step trace to this CSV (one policy and DFA only)")
+    parser.add_argument("--trace", help="Write the episode's per-step trace to this CSV (one policy, DFA and episode)")
     parser.add_argument("--stochastic", action="store_true",
                         help="Sample actions (action_mean + action_std * noise, clipped) instead of acting with the mean")
+    parser.add_argument("--obs-noise", action="store_true",
+                        help="Add env.json's observation noise to every observation, as in rad_obs_noise's training")
     parser.add_argument("--episodes", type=int, default=None,
-                        help="--stochastic only: episodes per policy and DFA (default: 100)")
-    parser.add_argument("--seed", type=int, default=0, help="--stochastic only: seed of the action noise (default: 0)")
+                        help="With --stochastic or --obs-noise: episodes per policy and DFA (default: 100)")
+    parser.add_argument("--seed", type=int, default=0, help="Seed of the action and observation noise (default: 0)")
     args = parser.parse_args()
 
     env = load_json(os.path.join(HERE, "env.json"))
     policies = load_json(os.path.join(HERE, "policies.json"))
     names = [args.policy] if args.policy else list(policies)
     dfa_paths = [args.dfa] if args.dfa else sorted(glob.glob(os.path.join(HERE, "dfas", "*.json")))
-    if args.episodes is not None and not args.stochastic:
-        parser.error("--episodes needs --stochastic: acting with the mean, every episode is the same")
-    # Acting with the mean, the policy and the simulator are deterministic, so one episode is the outcome.
-    episodes = (100 if args.episodes is None else args.episodes) if args.stochastic else 1
+    repeated = args.stochastic or args.obs_noise
+    if args.episodes is not None and not repeated:
+        parser.error("--episodes needs --stochastic or --obs-noise: without either, every episode is the same")
+    episodes = (100 if args.episodes is None else args.episodes) if repeated else 1
     if args.trace and (len(names) * len(dfa_paths) != 1 or episodes != 1):
-        parser.error("--trace needs --policy and --dfa, and --episodes 1 with --stochastic")
+        parser.error("--trace needs --policy and --dfa, and --episodes 1 with --stochastic or --obs-noise")
+    noise = env["obs_noise"]
+    noise_name = f"{noise['std_position']:g},{noise['std_velocity']:g}" if args.obs_noise else "none"
+    actions = "sampled" if args.stochastic else "mean"
 
     reference = {}
     reference_path = os.path.join(HERE, "reference", "rollouts.csv")
     if os.path.exists(reference_path):
         with open(reference_path) as f:
-            reference = {(r["policy"], r["dfa"]): r for r in csv.DictReader(f)}
+            reference = {(r["policy"], r["dfa"], r["obs_noise"], r["actions"]): r for r in csv.DictReader(f)}
 
-    rng = np.random.default_rng(args.seed) if args.stochastic else None
+    rng = np.random.default_rng(args.seed)
+    print(f"Observation noise: {noise_name}, actions: {actions}")
     for name in names:
         spec = policies[name]
-        policy = Policy(os.path.join(HERE, spec["file"]), spec["max_action"], rng)
+        policy = Policy(os.path.join(HERE, spec["file"]), spec["max_action"], rng if args.stochastic else None)
         for dfa_path in dfa_paths:
             dfa = load_json(dfa_path)
             trace = [] if args.trace else None
             results = [
-                run_episode(policy, Sim(env, spec["velocity_filter"]), dfa, env["max_steps_in_episode"], trace)
+                run_episode(policy, Sim(env, spec["velocity_filter"], rng if args.obs_noise else None), dfa,
+                            env["max_steps_in_episode"], trace)
                 for _ in range(episodes)
             ]
-            ref = reference.get((name, dfa["name"]))
-            if args.stochastic:
+            ref = reference.get((name, dfa["name"], noise_name, actions))
+            if repeated:
                 outcomes = [outcome for outcome, _ in results]
-                rate = {o: outcomes.count(o) / episodes for o in ("accept", "reject", "timeout")}
-                line = (f"{name:20} {dfa['name']}: success {rate['accept']:.2f}, reject {rate['reject']:.2f}, "
-                        f"timeout {rate['timeout']:.2f}, mean {np.mean([steps for _, steps in results]):5.1f} steps "
-                        f"over {episodes} episodes")
+                line = (f"{name:14} {dfa['name']}: "
+                        + ", ".join(f"{column} {outcomes.count(o) / episodes:.2f}" for o, column in OUTCOMES.items())
+                        + f", mean {np.mean([steps for _, steps in results]):5.1f} steps over {episodes} episodes")
                 if ref:
-                    line += (f"  (reference: success {ref['sampled_success']}, reject {ref['sampled_reject']}, "
-                             f"timeout {ref['sampled_timeout']}, mean {ref['sampled_mean_steps']} steps)")
+                    line += ("  (reference: " + ", ".join(f"{column} {float(ref[column]):.2f}"
+                                                           for column in OUTCOMES.values())
+                             + f", mean {ref['mean_steps']} steps)")
             else:
                 ((outcome, steps),) = results
-                line = f"{name:20} {dfa['name']}: {outcome:7} after {steps:3} steps"
+                line = f"{name:14} {dfa['name']}: {outcome:13} after {steps:3} steps"
                 if ref:
-                    line += f"  (reference: {ref['deterministic_outcome']} after {ref['deterministic_steps']} steps)"
+                    line += f"  (reference: {ref['outcome']} after {ref['steps']} steps)"
             print(line)
             if trace is not None:
                 with open(args.trace, "w", newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow(["t", "x", "y", "z", "vx", "vy", "vz", "action_x", "action_y", "action_z",
-                                     "token", "dfa_state"])
+                    writer.writerow(["t", "x", "y", "z", "vx", "vy", "vz", "obs_x", "obs_y", "obs_z", "obs_vx", "obs_vy",
+                                     "obs_vz", "action_x", "action_y", "action_z", "token", "dfa_state"])
                     writer.writerows(trace)
 
 

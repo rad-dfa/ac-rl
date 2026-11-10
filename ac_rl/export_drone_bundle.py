@@ -1,6 +1,7 @@
 """Packages the drone policies in POLICIES for use outside this repo, with example DFA tasks to evaluate them on.
 
   uv run export_drone_bundle.py [--dfas drone_dfas.json] [--out storage/share/drone_rad_max_size5] [--n 100]
+                                [--n-random 1000] [--gifs]
 
 The tasks are defined by hand in --dfas, a JSON list of DFAs over DroneEnv's tokens 0-9, each like
 
@@ -13,15 +14,20 @@ drone_dfas.json holds the bundle's examples, written by hand.
 
 Writes under --out, replacing the policies/, dfas/ and reference/ files of an earlier run:
   README.md, run_example.py     copied from drone_bundle/, where they are written by hand (README.md's result tables
-                                are filled in by hand from reference/rollouts.csv and test_drone_policy.py)
+                                are filled in by hand from reference/*.csv)
   policies/<name>.onnx          export_onnx.py's model of each policy, checked against the JAX network; it outputs
                                 the action mean and the policy's std, for acting deterministically or sampling
-  policies.json                 each policy's checkpoint, whether it acts through the velocity filter, max action
-                                and action std
-  env.json                      DroneEnv's box, start state, step sizes, velocity-filter parameters and token regions
+  policies.json                 each policy's checkpoint and training settings, whether it acts through the velocity
+                                filter, max action and action std
+  env.json                      DroneEnv's box (leaving it ends an episode), start state, step sizes, velocity-filter
+                                parameters, token regions, and the observation noise of the noisy evaluations
   dfas/<name>.json              each task, with the policy's DFA inputs precomputed for every DFA state
-  reference/rollouts.csv        each policy on each DFA in DroneEnv: the outcome of the deterministic (mean action)
-                                episode, and success/reject/timeout rates over --n episodes sampling actions
+  reference/rollouts.csv        each policy on each DFA in DroneEnv, without and with observation noise (EVAL_NOISES),
+                                acting with the action mean and sampling actions: the rates of each outcome (accept,
+                                reject, out of bounds, timeout) over --n episodes. Without noise, acting with the mean
+                                is deterministic, so that's one episode, whose outcome and length are given too
+  reference/random_tasks.csv    with --n-random only: the same rates over that many random tasks from the training
+                                distribution
   reference/<policy>_<dfa>.gif  with --gifs only: the deterministic episodes
 """
 import os
@@ -35,18 +41,24 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from dfax import DFAx
-from dfa_gym import animate_drone_trace
-from export_onnx import export
+from dfa_gym import DroneEnv, animate_drone_trace
+from export_onnx import export, make_env
 from test_drone_policy import run_episodes
-from naming import DRONE_SWEEP, drone_run_name, checkpoint_path
+from naming import DRONE_SWEEP, DRONE_SWEEP_ARMS, DRONE_SWEEP_NOISES, drone_run_name, checkpoint_path
 
-# train_drone_policies.sh's best run (lambda_0 = 1, clip [0, 1], gamma 0.999, PBRS beta 0.7, 2e7 steps): seed 1, the
-# MIX sampler, max size 5, p None, the velocity filter and the pretrained RAD encoder.
+# train_drone_policies.sh's shaped PPO run with PBRS (beta 0.7, gamma 0.999, 2e7 steps): seed 1, the MIX sampler, max
+# size 5, p None, the velocity filter and the pretrained RAD encoder, trained without and with observation noise.
+SHAPED_RAD = dict(DRONE_SWEEP, **DRONE_SWEEP_ARMS["shaped"], seed=1, sampler="MIX", max_size=5, n_tokens=10, p=None,
+                  no_rad=False, use_velocity_filter=True)
 POLICIES = {
-    "rad_velocity_filter": checkpoint_path("storage", drone_run_name(dict(
-        DRONE_SWEEP, seed=1, sampler="MIX", max_size=5, n_tokens=10, p=None, no_rad=False, use_velocity_filter=True,
-    ))),
+    "rad": checkpoint_path("storage", drone_run_name(dict(SHAPED_RAD, obs_noise_std=None))),
+    "rad_obs_noise": checkpoint_path("storage", drone_run_name(dict(SHAPED_RAD, obs_noise_std=DRONE_SWEEP_NOISES[1]))),
 }
+# The observation noises every policy is evaluated under, by their names in reference/*.csv: none, and the noisy
+# policy's training noise, (position std, velocity std).
+EVAL_NOISES = {"none" if n is None else f"{n[0]:g},{n[1]:g}": n for n in DRONE_SWEEP_NOISES}
+NOISY = next(n for n in EVAL_NOISES.values() if n is not None)
+OUTCOMES = {"accept": "success", "reject": "reject", "out_of_bounds": "out_of_bounds", "timeout": "timeout"}
 # The bundle's hand-written README.md and run_example.py.
 BUNDLE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "drone_bundle")
 
@@ -163,6 +175,8 @@ def env_spec(drone_env):
             regions.append({"token": token, "kind": kind, "x": [x_lo, x_hi], "y": [y_lo, y_hi], "z": [z_lo, z_hi]})
     return {
         "box": {"low": np.asarray(drone_env.low).tolist(), "high": np.asarray(drone_env.high).tolist()},
+        "out_of_bounds": "the episode ends on the step the position leaves the box (strictly below low or above high); "
+                         "nothing is clipped",
         "start": {"position": [0.0, 0.0, 0.0], "velocity": [0.0, 0.0, 0.0]},
         "dt": drone_env.dt,
         "max_speed": drone_env.max_speed,
@@ -172,9 +186,36 @@ def env_spec(drone_env):
             "max_accel": drone_env.max_filter_accel,
             "filter_dt": drone_env.filter_dt,
         },
+        "obs_noise": {
+            "std_position": NOISY[0],
+            "std_velocity": NOISY[1],
+            "truncate_sigmas": DroneEnv.OBS_NOISE_MAX_SIGMAS,
+            "note": "Gaussian noise added to the observation at the start and after every step, truncated to "
+                    "+-truncate_sigmas std; the dynamics and the regions use the true state",
+        },
         "n_tokens": drone_env.n_tokens,
+        "region_margin": drone_env.region_margin,
+        "region_gap": drone_env.region_gap,
         "regions": regions,
     }
+
+
+def outcomes(env, results):
+    """Each episode's outcome (a key of OUTCOMES), given run_episodes' results in the DFAWrapper `env`."""
+    successes, fails, ep_lens, _, _, traj, _ = results
+    ep_lens = np.asarray(ep_lens)
+    # The last state of each episode (traj starts with the initial state), agent 0
+    final = np.asarray(traj.positions)[np.arange(len(ep_lens)), ep_lens, 0]
+    out = np.any((final < np.asarray(env.env.low)) | (final > np.asarray(env.env.high)), axis=-1)
+    # DFAWrapper rewards the DFA's acceptance or rejection even on the step the drone leaves the box.
+    return np.where(np.asarray(successes), "accept",
+                    np.where(np.asarray(fails), "reject", np.where(out, "out_of_bounds", "timeout")))
+
+
+def rates(outcome, ep_lens):
+    return {"episodes": len(outcome),
+            **{column: f"{np.mean(outcome == o):.3f}" for o, column in OUTCOMES.items()},
+            "mean_steps": f"{float(np.mean(ep_lens)):.1f}"}
 
 
 def main():
@@ -184,7 +225,11 @@ def main():
     parser.add_argument("--out", default="storage/share/drone_rad_max_size5",
                         help="Output directory (default: storage/share/drone_rad_max_size5)")
     parser.add_argument("--n", type=int, default=100,
-                        help="Episodes per policy and DFA for the sampled-action rates (default: 100)")
+                        help="Episodes per policy, DFA, observation noise and action mode, except the one deterministic "
+                             "episode without noise acting with the mean (default: 100)")
+    parser.add_argument("--n-random", type=int, default=0,
+                        help="Random tasks per policy, observation noise and action mode, for reference/random_tasks.csv "
+                             "(default: 0, none: it takes about an hour on a laptop CPU)")
     parser.add_argument("--gifs", action="store_true",
                         help="Also draw the deterministic episodes as reference/<policy>_<dfa>.gif (tens of MB, so off by "
                              "default; README.md doesn't list them)")
@@ -196,7 +241,7 @@ def main():
     for path in glob.glob(os.path.join(args.out, "policies", "*.onnx")) + \
             glob.glob(os.path.join(args.out, "dfas", "*.json")) + \
             glob.glob(os.path.join(args.out, "reference", "*.gif")) + \
-            glob.glob(os.path.join(args.out, "reference", "rollouts.csv")):
+            glob.glob(os.path.join(args.out, "reference", "*.csv")):
         os.remove(path)
     for name in ("README.md", "run_example.py"):
         shutil.copy(os.path.join(BUNDLE_DIR, name), args.out)
@@ -221,6 +266,15 @@ def main():
             name: {
                 "file": f"policies/{name}.onnx",
                 "checkpoint": os.path.basename(POLICIES[name]),
+                "training": {
+                    "algorithm": "PPO-Lagrangian" if p["cfg"]["safe"] else "PPO",
+                    "reward": "binary" if p["cfg"]["binary_reward"] else "shaped",
+                    "pbrs_beta": p["cfg"]["beta"],
+                    "obs_noise_std": None if p["cfg"]["obs_noise_std"] is None else list(p["cfg"]["obs_noise_std"]),
+                    "gamma": p["cfg"]["gamma"],
+                    "steps": p["cfg"]["total_timesteps"],
+                    "seed": p["cfg"]["seed"],
+                },
                 "velocity_filter": p["cfg"]["use_velocity_filter"],
                 "max_action": float(p["network"].max_action),
                 # The ONNX model's action_std output, constant
@@ -255,42 +309,53 @@ def main():
             }))
         print(f"{name} ({len(T)} states):\n  " + "\n  ".join(describe(T, status)))
 
-    rows = []
+    rows, random_rows = [], []
     key = jax.random.PRNGKey(0)
     for name, p in policies.items():
-        env, network, params = p["env"], p["network"], p["params"]
-        max_steps = p["cfg"]["max_steps_in_episode"]
-        for dfa_name, (dfa, _) in dfas.items():
-            # As DFAWrapper.reset hands out the sampler's DFAs: minimized.
-            task = dfa.minimize()
-            key, det_key, sample_key = jax.random.split(key, 3)
-            # The env and the mean action are deterministic, so one episode is the deterministic outcome.
-            success, fail, ep_len, _, _, traj, _ = run_episodes(
-                env, network, params, det_key[None], True, max_steps, 1, dfa=task
-            )
-            outcome = "accept" if success[0] else "reject" if fail[0] else "timeout"
-            successes, fails, ep_lens, *_ = run_episodes(
-                env, network.clone(deterministic=False), params, jax.random.split(sample_key, args.n), False,
-                max_steps, args.n, dfa=task
-            )
-            timeouts = ~(successes | fails)
-            rows.append({
-                "policy": name, "dfa": dfa_name,
-                "deterministic_outcome": outcome, "deterministic_steps": int(ep_len[0]),
-                "sampled_success": f"{float(successes.mean()):.2f}", "sampled_reject": f"{float(fails.mean()):.2f}",
-                "sampled_timeout": f"{float(timeouts.mean()):.2f}", "sampled_mean_steps": f"{float(ep_lens.mean()):.1f}",
-            })
-            print(", ".join(f"{k} {v}" for k, v in rows[-1].items()))
+        params, max_steps = p["params"], p["cfg"]["max_steps_in_episode"]
+        for noise_name, noise in EVAL_NOISES.items():
+            env = make_env(p["cfg"], noise)
+            for actions in ("mean", "sampled"):
+                mean = actions == "mean"
+                network = p["network"].clone(deterministic=mean)
+                # Without noise, the env and the mean action are deterministic, so one episode is the outcome.
+                single = mean and noise is None
+                n = 1 if single else args.n
+                # Every DFA's n episodes in one call, so it compiles once. As DFAWrapper.reset hands out the
+                # sampler's DFAs: minimized.
+                tasks = [dfa.minimize() for dfa, _ in dfas.values() for _ in range(n)]
+                key, subkey = jax.random.split(key)
+                results = run_episodes(env, network, params, jax.random.split(subkey, len(tasks)), mean, max_steps,
+                                       len(tasks), dfas=jax.tree_util.tree_map(lambda *xs: jnp.stack(xs), *tasks))
+                all_outcomes, all_lens = outcomes(env, results), np.asarray(results[2])
+                for i, (dfa_name, (dfa, _)) in enumerate(dfas.items()):
+                    outcome, ep_lens = all_outcomes[i * n:(i + 1) * n], all_lens[i * n:(i + 1) * n]
+                    rows.append({"policy": name, "dfa": dfa_name, "obs_noise": noise_name, "actions": actions,
+                                 **rates(outcome, ep_lens),
+                                 "outcome": outcome[0] if single else "", "steps": int(ep_lens[0]) if single else ""})
+                    print(", ".join(f"{k} {v}" for k, v in rows[-1].items() if v != ""))
 
-            if args.gifs:
-                trace = [jax.tree_util.tree_map(lambda x: x[0, t], traj) for t in range(int(ep_len[0]) + 1)]
-                animate_drone_trace(env.env, trace, dfa=dfa,
-                                    save_path=os.path.join(args.out, "reference", f"{name}_{dfa_name}.gif"))
+                    if single and args.gifs:
+                        trace = [jax.tree_util.tree_map(lambda x: x[i, t], results[5])
+                                 for t in range(int(ep_lens[0]) + 1)]
+                        animate_drone_trace(env.env, trace, dfa=dfa,
+                                            save_path=os.path.join(args.out, "reference", f"{name}_{dfa_name}.gif"))
 
-    with open(os.path.join(args.out, "reference", "rollouts.csv"), "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
+                if args.n_random:
+                    key, subkey = jax.random.split(key)
+                    results = run_episodes(env, network, params, jax.random.split(subkey, args.n_random), mean,
+                                           max_steps, args.n_random)
+                    random_rows.append({"policy": name, "obs_noise": noise_name, "actions": actions,
+                                        **rates(outcomes(env, results), np.asarray(results[2]))})
+                    print("random tasks: " + ", ".join(f"{k} {v}" for k, v in random_rows[-1].items()))
+
+    for file_name, table in (("rollouts.csv", rows), ("random_tasks.csv", random_rows)):
+        if not table:
+            continue
+        with open(os.path.join(args.out, "reference", file_name), "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=list(table[0]))
+            writer.writeheader()
+            writer.writerows(table)
     print(f"\n-> {args.out}")
 
 

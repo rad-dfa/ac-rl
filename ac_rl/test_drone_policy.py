@@ -227,16 +227,19 @@ def setup(args):
     return drone_env, env, network, params, run_tag, key
 
 
-def run_episodes(env, network, params, keys, deterministic, max_steps, batch_size, dfa=None, gamma=GAMMA):
+def run_episodes(env, network, params, keys, deterministic, max_steps, batch_size, dfa=None, gamma=GAMMA, dfas=None):
     """Rolls out one episode per key (vmapped in chunks of batch_size).
 
     If `dfa` (a dfax.DFAx) is given, every episode is conditioned on it instead of a
-    DFA drawn from env's sampler. Returns (successes, fails, ep_lens, ep_rewards,
+    DFA drawn from env's sampler; if `dfas` (DFAx's stacked along a leading axis, one
+    per key) is, each episode on its own. Several tasks in one call compile once,
+    unlike one call per task. Returns (successes, fails, ep_lens, ep_rewards,
     ep_disc_returns, trajs, init_dfas), with trajs the stacked DroneEnvStates
     (initial state included) of shape (n, max_steps + 1, ...).
     """
+    assert dfa is None or dfas is None, "give dfa or dfas, not both"
 
-    def run_episode(params, key):
+    def run_episode(params, key, dfa):
         key, subkey = jax.random.split(key)
         obs, state = env.reset(subkey)
         if dfa is not None:
@@ -303,13 +306,14 @@ def run_episodes(env, network, params, keys, deterministic, max_steps, batch_siz
             state.init_dfas[env.agents[0]],
         )
 
-    run_batch = jax.jit(jax.vmap(run_episode, (None, 0)))
+    run_batch = jax.jit(jax.vmap(run_episode, (None, 0, None if dfas is None else 0)))
 
     n = keys.shape[0]
     results = []
     for start in range(0, n, batch_size):
         end = min(start + batch_size, n)
-        results.append(run_batch(params, keys[start:end]))
+        batch_dfas = dfa if dfas is None else jax.tree_util.tree_map(lambda x: x[start:end], dfas)
+        results.append(run_batch(params, keys[start:end], batch_dfas))
     return jax.tree_util.tree_map(lambda *xs: jnp.concatenate(xs, axis=0), *results)
 
 

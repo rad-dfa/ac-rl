@@ -18,7 +18,8 @@ random inputs before being accepted (see verify_onnx()).
 ONNX model I/O (matches a single, unbatched DroneEnv/DFAWrapper step; see
 CLAUDE.md's "Task setup" section for what these mean):
   inputs:
-    obs            float32[6]     -- drone (position(3), velocity(3))
+    obs            float32[6]     -- drone (position(3), velocity(3)), noisy if the run trained with
+                                      --obs-noise-std
     node_features  float32[5,4]   -- DFAx.to_graph() node features, max_size=5
     edge_features  float32[25,n_tokens+8] -- DFAx.to_graph() edge features
     current_state  int64[1]       -- index of the DFA's current state
@@ -183,10 +184,9 @@ def checkpoint_config(ckpt_path):
     return cfg
 
 
-def build_network_and_params(ckpt_path):
-    cfg = checkpoint_config(ckpt_path)
-    assert cfg["max_size"] == MAX_SIZE, "this exporter hardcodes MAX_SIZE=5"
-
+def make_env(cfg, obs_noise_std):
+    """The run's (cfg's) DFAWrapper env as train_drone_policy.py builds it, but with observation noise obs_noise_std:
+    a (position std, velocity std) pair, or None for none."""
     drone_env = DroneEnv(
         n_agents=1,
         x_low=cfg["x_low"], x_high=cfg["x_high"],
@@ -196,10 +196,20 @@ def build_network_and_params(ckpt_path):
         use_displacement_action=cfg["use_displacement_action"],
         use_velocity_filter=cfg["use_velocity_filter"],
         max_steps_in_episode=cfg["max_steps_in_episode"],
+        obs_noise_std=tuple(obs_noise_std) if obs_noise_std else 0.0,
     )
     assert drone_env.n_tokens == cfg["n_tokens"], f"DroneEnv has {drone_env.n_tokens} tokens, the checkpoint {cfg['n_tokens']}"
     sampler = make_sampler(cfg["sampler"], cfg["max_size"], drone_env.n_tokens, cfg["p"])
-    env = DFAWrapper(env=drone_env, gamma=None, sampler=sampler, binary_reward=cfg["binary_reward"])
+    return DFAWrapper(env=drone_env, gamma=None, sampler=sampler, binary_reward=cfg["binary_reward"])
+
+
+def build_network_and_params(ckpt_path):
+    cfg = checkpoint_config(ckpt_path)
+    assert cfg["max_size"] == MAX_SIZE, "this exporter hardcodes MAX_SIZE=5"
+
+    # With the run's own observation noise, which doesn't change the network
+    env = make_env(cfg, cfg["obs_noise_std"])
+    drone_env, sampler = env.env, env.sampler
     env = LogWrapper(env=env, config={"LOG": None})
 
     if not cfg["no_rad"]:
