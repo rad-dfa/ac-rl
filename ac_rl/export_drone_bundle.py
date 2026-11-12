@@ -1,6 +1,6 @@
 """Packages the drone policies in POLICIES for use outside this repo, with example DFA tasks to evaluate them on.
 
-  uv run export_drone_bundle.py [--dfas drone_dfas.json] [--out storage/share/drone_rad_max_size5] [--n 100]
+  uv run export_drone_bundle.py [--dfas drone_dfas.json] [--out storage/share/drone_rad_max_size5_tracking] [--n 100]
                                 [--n-random 1000] [--gifs]
 
 The tasks are defined by hand in --dfas, a JSON list of DFAs over DroneEnv's tokens 0-9, each like
@@ -18,9 +18,10 @@ Writes under --out, replacing the policies/, dfas/ and reference/ files of an ea
   policies/<name>.onnx          export_onnx.py's model of each policy, checked against the JAX network; it outputs
                                 the action mean and the policy's std, for acting deterministically or sampling
   policies.json                 each policy's checkpoint and training settings, whether it acts through the velocity
-                                filter, max action and action std
+                                filter and the tracking controller, max action and action std
   env.json                      DroneEnv's box (leaving it ends an episode), start state, step sizes, velocity-filter
-                                parameters, token regions, and the observation noise of the noisy evaluations
+                                and (if the policies use it) tracking-controller parameters, token regions, and the
+                                observation noise of the noisy evaluations
   dfas/<name>.json              each task, with the policy's DFA inputs precomputed for every DFA state
   reference/rollouts.csv        each policy on each DFA in DroneEnv, without and with observation noise (EVAL_NOISES),
                                 acting with the action mean and sampling actions: the rates of each outcome (accept,
@@ -46,20 +47,16 @@ from export_onnx import export, make_env
 from test_drone_policy import run_episodes
 from naming import DRONE_SWEEP, DRONE_SWEEP_ARMS, drone_run_name, checkpoint_path
 
-# The observation noises of the bundled policies: none, and (position std, velocity std).
-BUNDLE_NOISES = [None, (0.02, 0.1)]
 # train_drone_policies.sh's shaped PPO run with PBRS (beta 0.7, gamma 0.999, 2e7 steps): seed 1, the MIX sampler, max
-# size 5, p None, the velocity filter and the pretrained RAD encoder, trained without and with observation noise. These
-# are from before the script went to the tracking controller (2026-11-11), which run_example.py doesn't simulate.
+# size 5, p None, the pretrained RAD encoder, the velocity filter followed by the tracking controller, and observation
+# noise 0.02/0.1. The bundle before (2026-11-10, in git history) had that run without the tracking controller, trained
+# without and with observation noise ("rad" and "rad_obs_noise").
 SHAPED_RAD = dict(DRONE_SWEEP, **DRONE_SWEEP_ARMS["shaped"], seed=1, sampler="MIX", max_size=5, n_tokens=10, p=None,
-                  no_rad=False, use_velocity_filter=True, use_tracking_controller=False)
-POLICIES = {
-    "rad": checkpoint_path("storage", drone_run_name(dict(SHAPED_RAD, obs_noise_std=BUNDLE_NOISES[0]))),
-    "rad_obs_noise": checkpoint_path("storage", drone_run_name(dict(SHAPED_RAD, obs_noise_std=BUNDLE_NOISES[1]))),
-}
-# The observation noises every policy is evaluated under, by their names in reference/*.csv: none, and the noisy
-# policy's training noise, (position std, velocity std).
-EVAL_NOISES = {"none" if n is None else f"{n[0]:g},{n[1]:g}": n for n in BUNDLE_NOISES}
+                  no_rad=False, use_velocity_filter=True)
+POLICIES = {"rad_tracking": checkpoint_path("storage", drone_run_name(SHAPED_RAD))}
+# The observation noises every policy is evaluated under, by their names in reference/*.csv: none, and the policy's
+# training noise, (position std, velocity std).
+EVAL_NOISES = {"none" if n is None else f"{n[0]:g},{n[1]:g}": n for n in (None, SHAPED_RAD["obs_noise_std"])}
 NOISY = next(n for n in EVAL_NOISES.values() if n is not None)
 OUTCOMES = {"accept": "success", "reject": "reject", "out_of_bounds": "out_of_bounds", "timeout": "timeout"}
 # The bundle's hand-written README.md and run_example.py.
@@ -189,6 +186,15 @@ def env_spec(drone_env):
             "max_accel": drone_env.max_filter_accel,
             "filter_dt": drone_env.filter_dt,
         },
+        **({"tracking_controller": {
+            "kp": list(drone_env.tracking_kp),
+            "kv": list(drone_env.tracking_kv),
+            "motor_tau": list(drone_env.motor_tau),
+            "note": "per axis (x, y, z); the velocity filter's position, velocity and acceleration are the reference "
+                    "that the drone tracks, in each filter substep h after the reference advances: request = ref_a + "
+                    "kp * (ref_p - p) + kv * (ref_v - v), a += (1 - exp(-h / motor_tau)) * (request - a), "
+                    "v += h * a, p += h * (v_old + v) / 2; the reference starts at the drone",
+        }} if drone_env.use_tracking_controller else {}),
         "obs_noise": {
             "std_position": NOISY[0],
             "std_velocity": NOISY[1],
@@ -225,8 +231,8 @@ def main():
     parser = argparse.ArgumentParser(description="Package drone policies as ONNX with example DFA tasks")
     parser.add_argument("--dfas", default="drone_dfas.json",
                         help="Hand-defined DFA tasks, see the module docstring (default: drone_dfas.json)")
-    parser.add_argument("--out", default="storage/share/drone_rad_max_size5",
-                        help="Output directory (default: storage/share/drone_rad_max_size5)")
+    parser.add_argument("--out", default="storage/share/drone_rad_max_size5_tracking",
+                        help="Output directory (default: storage/share/drone_rad_max_size5_tracking)")
     parser.add_argument("--n", type=int, default=100,
                         help="Episodes per policy, DFA, observation noise and action mode, except the one deterministic "
                              "episode without noise acting with the mean (default: 100)")
@@ -263,8 +269,8 @@ def main():
     drone_env, sampler = first["env"].env, first["env"].sampler
     for p in policies.values():
         assert (p["env"].sampler == sampler) and (p["env"].env.n_tokens == drone_env.n_tokens)
-        # run_example.py and env.json only have the velocity filter
-        assert not p["cfg"]["use_tracking_controller"], "the bundle doesn't support the tracking controller yet"
+        # env.json describes one simulator, the first policy's
+        assert p["env"].env.use_tracking_controller == drone_env.use_tracking_controller
 
     with open(os.path.join(args.out, "policies.json"), "w") as f:
         f.write(dumps({
@@ -281,6 +287,7 @@ def main():
                     "seed": p["cfg"]["seed"],
                 },
                 "velocity_filter": p["cfg"]["use_velocity_filter"],
+                "tracking_controller": p["cfg"]["use_tracking_controller"],
                 "max_action": float(p["network"].max_action),
                 # The ONNX model's action_std output, constant
                 "action_std": np.exp(np.asarray(p["params"]["params"]["actor_logstd"], dtype=np.float32)).tolist(),
