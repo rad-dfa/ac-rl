@@ -195,6 +195,7 @@ def make_env(cfg, obs_noise_std):
         max_speed=cfg["max_speed"], dt=cfg["dt"],
         use_displacement_action=cfg["use_displacement_action"],
         use_velocity_filter=cfg["use_velocity_filter"],
+        use_tracking_controller=cfg["use_tracking_controller"],
         max_steps_in_episode=cfg["max_steps_in_episode"],
         obs_noise_std=tuple(obs_noise_std) if obs_noise_std else 0.0,
     )

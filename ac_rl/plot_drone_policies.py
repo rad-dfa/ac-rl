@@ -4,8 +4,8 @@ Reads the train_drone_policy.py --log CSVs in --storage/logs whose run settings 
   <metric>.pdf             one panel per config (rows: sampler; columns: max size x p), RAD vs no-RAD in each
   <config>/<metric>.pdf    the same comparison for a single config
   summary.csv              key metrics averaged over the last --last updates, RAD and no-RAD side by side
-Without --tag, it plots train_drone_policies.sh's runs without and with the velocity filter into --out/vel and
---out/vfilt. A log without a checkpoint (interrupted or still running) is plotted up to where it stops and marked
+Without --tag, it plots train_drone_policies.sh's runs with velocity commands, the velocity filter and the velocity
+filter followed by the tracking controller into --out/vel, --out/vfilt and --out/vtrack, skipping those without runs. A log without a checkpoint (interrupted or still running) is plotted up to where it stops and marked
 incomplete; its config's summary compares both runs at the last step they share.
 
   uv run plot_drone_policies.py
@@ -21,10 +21,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from naming import DRONE_SWEEP, drone_run_name, drone_run_settings, checkpoint_path, parse_log_name, num
 
-# Run settings of train_drone_policies.sh's runs without and with the velocity filter, by output subdirectory.
+# Run settings of train_drone_policies.sh's runs by action mode (as in run names), by output subdirectory: velocity
+# commands, the velocity filter, and the velocity filter followed by the tracking controller.
 DEFAULT_TAGS = {
-    mode: drone_run_settings(dict(DRONE_SWEEP, use_velocity_filter=(mode == "vfilt")))
-    for mode in ("vel", "vfilt")
+    mode: drone_run_settings(dict(DRONE_SWEEP, use_velocity_filter=(mode != "vel"),
+                                  use_tracking_controller=(mode == "vtrack")))
+    for mode in ("vel", "vfilt", "vtrack")
 }
 
 # Grid layout: rows are samplers, columns are (max size, p). Rows and columns without runs are dropped.
@@ -231,11 +233,13 @@ def summarize(configs, last):
 def main():
     parser = argparse.ArgumentParser(description="Plot RAD vs no-RAD drone policies from train_drone_policies.sh")
     parser.add_argument("--storage", default="storage", help="--save-dir of the runs; their CSV logs are read from {storage}/logs (default: storage)")
-    parser.add_argument("--out", default="storage/plots/drone_policies",
-                        help="Output directory (default: storage/plots/drone_policies)")
+    parser.add_argument("--out", default="storage/plots/drone_policies_tracking",
+                        help="Output directory (default: storage/plots/drone_policies_tracking; the sweep's runs "
+                             "without the tracking controller, until 2026-11-11, were plotted into "
+                             "storage/plots/drone_policies)")
     parser.add_argument("--tag", default=None,
                         help="Run settings after the rad/no_rad part of the log name (default: train_drone_policies.sh's "
-                             "without and with the velocity filter, into --out/vel and --out/vfilt)")
+                             "by action mode, into --out/vel, --out/vfilt and --out/vtrack)")
     parser.add_argument("--last", type=int, default=50, help="Updates averaged in summary.csv (default: 50)")
     parser.add_argument("--format", default="pdf", help="Figure file format (default: pdf)")
     args = parser.parse_args()

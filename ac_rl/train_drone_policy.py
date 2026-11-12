@@ -208,6 +208,11 @@ if __name__ == "__main__":
         help="Velocity commands go through the deployed drone's velocity filter (DroneEnv defaults for its parameters)"
     )
     parser.add_argument(
+        "--use-tracking-controller",
+        action="store_true",
+        help="The drone tracks the velocity filter's output through the deployed stack's controller and motor delay (DroneEnv defaults for its gains) instead of following it exactly; needs --use-velocity-filter"
+    )
+    parser.add_argument(
         "--max-steps-in-episode",
         type=int,
         default=500,
@@ -234,6 +239,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    if args.use_tracking_controller and not args.use_velocity_filter:
+        parser.error("--use-tracking-controller tracks the velocity filter; add --use-velocity-filter")
     if args.safe and args.binary_reward:
         parser.error("--safe needs the +1/-1 DFA reward to tell rejections from timeouts; drop --binary-reward")
     if args.beta is not None and not 0 < args.beta < 1:
@@ -288,6 +295,7 @@ if __name__ == "__main__":
         dt=args.dt,
         use_displacement_action=args.use_displacement_action,
         use_velocity_filter=args.use_velocity_filter,
+        use_tracking_controller=args.use_tracking_controller,
         max_steps_in_episode=args.max_steps_in_episode,
         obs_noise_std=tuple(args.obs_noise_std) if args.obs_noise_std else 0.0,
     )

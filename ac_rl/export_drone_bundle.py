@@ -44,19 +44,22 @@ from dfax import DFAx
 from dfa_gym import DroneEnv, animate_drone_trace
 from export_onnx import export, make_env
 from test_drone_policy import run_episodes
-from naming import DRONE_SWEEP, DRONE_SWEEP_ARMS, DRONE_SWEEP_NOISES, drone_run_name, checkpoint_path
+from naming import DRONE_SWEEP, DRONE_SWEEP_ARMS, drone_run_name, checkpoint_path
 
+# The observation noises of the bundled policies: none, and (position std, velocity std).
+BUNDLE_NOISES = [None, (0.02, 0.1)]
 # train_drone_policies.sh's shaped PPO run with PBRS (beta 0.7, gamma 0.999, 2e7 steps): seed 1, the MIX sampler, max
-# size 5, p None, the velocity filter and the pretrained RAD encoder, trained without and with observation noise.
+# size 5, p None, the velocity filter and the pretrained RAD encoder, trained without and with observation noise. These
+# are from before the script went to the tracking controller (2026-11-11), which run_example.py doesn't simulate.
 SHAPED_RAD = dict(DRONE_SWEEP, **DRONE_SWEEP_ARMS["shaped"], seed=1, sampler="MIX", max_size=5, n_tokens=10, p=None,
-                  no_rad=False, use_velocity_filter=True)
+                  no_rad=False, use_velocity_filter=True, use_tracking_controller=False)
 POLICIES = {
-    "rad": checkpoint_path("storage", drone_run_name(dict(SHAPED_RAD, obs_noise_std=None))),
-    "rad_obs_noise": checkpoint_path("storage", drone_run_name(dict(SHAPED_RAD, obs_noise_std=DRONE_SWEEP_NOISES[1]))),
+    "rad": checkpoint_path("storage", drone_run_name(dict(SHAPED_RAD, obs_noise_std=BUNDLE_NOISES[0]))),
+    "rad_obs_noise": checkpoint_path("storage", drone_run_name(dict(SHAPED_RAD, obs_noise_std=BUNDLE_NOISES[1]))),
 }
 # The observation noises every policy is evaluated under, by their names in reference/*.csv: none, and the noisy
 # policy's training noise, (position std, velocity std).
-EVAL_NOISES = {"none" if n is None else f"{n[0]:g},{n[1]:g}": n for n in DRONE_SWEEP_NOISES}
+EVAL_NOISES = {"none" if n is None else f"{n[0]:g},{n[1]:g}": n for n in BUNDLE_NOISES}
 NOISY = next(n for n in EVAL_NOISES.values() if n is not None)
 OUTCOMES = {"accept": "success", "reject": "reject", "out_of_bounds": "out_of_bounds", "timeout": "timeout"}
 # The bundle's hand-written README.md and run_example.py.
@@ -260,6 +263,8 @@ def main():
     drone_env, sampler = first["env"].env, first["env"].sampler
     for p in policies.values():
         assert (p["env"].sampler == sampler) and (p["env"].env.n_tokens == drone_env.n_tokens)
+        # run_example.py and env.json only have the velocity filter
+        assert not p["cfg"]["use_tracking_controller"], "the bundle doesn't support the tracking controller yet"
 
     with open(os.path.join(args.out, "policies.json"), "w") as f:
         f.write(dumps({

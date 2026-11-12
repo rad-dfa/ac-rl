@@ -8,7 +8,8 @@ and the same settings always give the same name:
 
 That is the env, seed, sampler, max DFA size, number of tokens, p (None: uniformly sampled DFA sizes), the encoder
 (pretrained RAD or trained from scratch) and the DFA reward (binary 1/0 or shaped +1/-1/0). Drone runs then add the
-env settings, the observation noise's position and velocity stds if there is any (so runs from before
+env settings, among them the action mode (vel: velocity commands, vfilt: through the velocity filter, vtrack: through
+the velocity filter, which the tracking controller then follows, disp: displacements), the observation noise's position and velocity stds if there is any (so runs from before
 --obs-noise-std keep their names), the PPO settings, the total timesteps if not the default 1e7 (likewise for
 --total-timesteps), PBRS's beta if the reward is shaped with PBRS, and PPO-Lagrangian's settings if --safe (no
 --lambda-clip is written as its [0, inf) default). Samplers go by rad_embeddings' short names (R, RA, RAD, MIX), as
@@ -21,22 +22,24 @@ import re
 from rad_embeddings.encoder import SAMPLERS, canonical_sampler
 
 # train_drone_policies.sh's settings, to find its runs by name: the ones shared by all of its runs, leaving out the
-# ones callers pick (seed, sampler, max_size, p, no_rad and use_velocity_filter), and its reference arm's values for
-# the ones it varies:
-# no observation noise (it also runs with --obs-noise-std 0.02 0.1), PBRS beta 0.7 (also without PBRS, beta None),
-# shaped reward and --safe with lambda learned from 0 (also unsafe with the shaped reward). Keep in sync with the
-# script. Until 2026-11-10 the reference arm learned lambda from 1, an arm the script dropped then.
+# ones callers pick (seed, sampler, max_size, p, no_rad and use_velocity_filter, which the tracking controller needs),
+# and its reference arm's values for the ones it varies: PBRS beta 0.7 (also without PBRS, beta None), shaped reward
+# and --safe with lambda learned from 0 (also unsafe with the shaped reward). Keep in sync with the script.
+# Until 2026-11-11 the script ran without the tracking controller, and with observation noise 0.02/0.1 as well as
+# without it (no noise in the reference arm); those runs are in storage under their _vfilt_ names. Until 2026-11-10
+# the reference arm learned lambda from 1, an arm the script dropped then.
 DRONE_SWEEP = dict(
     binary_reward=False, x_low=-1.0, x_high=1.0, y_low=-1.0, y_high=1.0, z_low=-1.0, z_high=1.0, max_speed=1.0,
-    dt=0.1, use_displacement_action=False, max_steps_in_episode=500, obs_noise_std=None, gamma=0.999,
-    total_timesteps=20_000_000, beta=0.7, safe=True, delta=0.05, lambda_lr=0.05, lambda_warmup=0, lambda_init=0.0,
-    lambda_every=1, lambda_clip=None,
+    dt=0.1, use_displacement_action=False, use_tracking_controller=True, max_steps_in_episode=500,
+    obs_noise_std=(0.02, 0.1), gamma=0.999, total_timesteps=20_000_000, beta=0.7, safe=True, delta=0.05,
+    lambda_lr=0.05, lambda_warmup=0, lambda_init=0.0, lambda_every=1, lambda_clip=None,
 )
 
 # The values train_drone_policies.sh varies besides the seed and encoder, as overrides of DRONE_SWEEP: its observation
-# noises, its arms (arm_flags) and its PBRS betas. Keep in sync with the script, too. Its dropped arms (2026-11-10, run
-# for seed 1 only) were binary, dict(binary_reward=True, safe=False), and safe_l1, safe_l0 with lambda_init=1.0.
-DRONE_SWEEP_NOISES = [None, (0.02, 0.1)]
+# noises, its arms (arm_flags) and its PBRS betas. Keep in sync with the script, too. Until 2026-11-11 its noises were
+# [None, (0.02, 0.1)] (without the tracking controller). Its dropped arms (2026-11-10, run for seed 1 only) were
+# binary, dict(binary_reward=True, safe=False), and safe_l1, safe_l0 with lambda_init=1.0.
+DRONE_SWEEP_NOISES = [(0.02, 0.1)]
 DRONE_SWEEP_ARMS = {
     "shaped": dict(binary_reward=False, safe=False),
     "safe_l0": dict(binary_reward=False, safe=True, lambda_init=0.0),
@@ -71,7 +74,11 @@ def identity(env, cfg):
 
 def drone_run_settings(cfg):
     """The part of a drone run name after the encoder, i.e. everything but the seed, sampler, sizes, p and encoder."""
-    action = "disp" if cfg["use_displacement_action"] else "vfilt" if cfg["use_velocity_filter"] else "vel"
+    if cfg["use_tracking_controller"] and not cfg["use_velocity_filter"]:
+        raise ValueError("the tracking controller tracks the velocity filter: use_tracking_controller needs "
+                         "use_velocity_filter")
+    action = ("disp" if cfg["use_displacement_action"] else "vtrack" if cfg["use_tracking_controller"]
+              else "vfilt" if cfg["use_velocity_filter"] else "vel")
     settings = (
         f"{'binary' if cfg['binary_reward'] else 'shaped'}"
         f"_x{num(cfg['x_low'])}_{num(cfg['x_high'])}_y{num(cfg['y_low'])}_{num(cfg['y_high'])}"
@@ -124,7 +131,7 @@ _DRONE_RE = re.compile(
     rf"drone_seed_(?P<seed>\d+)_(?P<sampler>{'|'.join(SAMPLERS)})_(?P<max_size>\d+)_(?P<n_tokens>\d+)"
     rf"_p(?P<p>None|{_NUM})_(?P<encoder>rad|no_rad)_(?P<reward>binary|shaped)"
     rf"_x{_num('x_low')}_{_num('x_high')}_y{_num('y_low')}_{_num('y_high')}_z{_num('z_low')}_{_num('z_high')}"
-    rf"_speed{_num('max_speed')}_dt{_num('dt')}_(?P<action>vel|vfilt|disp)_steps(?P<max_steps_in_episode>\d+)"
+    rf"_speed{_num('max_speed')}_dt{_num('dt')}_(?P<action>vel|vfilt|vtrack|disp)_steps(?P<max_steps_in_episode>\d+)"
     rf"(?:_noise{_num('noise_pos')}_{_num('noise_vel')})?"
     rf"_g{_num('gamma')}(?:_total(?P<total_timesteps>\d+))?(?:_pbrs{_num('beta')})?"
     rf"(?P<safe>_safe_d{_num('delta')}_lr{_num('lambda_lr')}_w(?P<lambda_warmup>\d+)_l{_num('lambda_init')}"
@@ -147,7 +154,8 @@ def parse_drone_run_name(run):
         no_rad=g["encoder"] == "no_rad",
         binary_reward=g["reward"] == "binary",
         use_displacement_action=g["action"] == "disp",
-        use_velocity_filter=g["action"] == "vfilt",
+        use_velocity_filter=g["action"] in ("vfilt", "vtrack"),
+        use_tracking_controller=g["action"] == "vtrack",
         obs_noise_std=None if g["noise_pos"] is None else (float(g["noise_pos"]), float(g["noise_vel"])),
         total_timesteps=DEFAULT_TOTAL_TIMESTEPS if g["total_timesteps"] is None else int(g["total_timesteps"]),
         beta=None if g["beta"] is None else float(g["beta"]),

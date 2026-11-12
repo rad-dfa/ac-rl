@@ -101,6 +101,12 @@ def make_parser(description, n_default=100, gif_flag=True):
         help="Velocity commands go through the deployed drone's velocity filter (DroneEnv defaults for its parameters)"
     )
     parser.add_argument(
+        "--use-tracking-controller",
+        action="store_true",
+        help="--use-tracking-controller the policy was trained with: the drone tracks the velocity filter's output "
+             "through the deployed stack's controller and motor delay; needs --use-velocity-filter"
+    )
+    parser.add_argument(
         "--max-steps-in-episode",
         type=int,
         default=500,
@@ -169,6 +175,7 @@ def setup(args):
         dt=args.dt,
         use_displacement_action=args.use_displacement_action,
         use_velocity_filter=args.use_velocity_filter,
+        use_tracking_controller=args.use_tracking_controller,
         max_steps_in_episode=args.max_steps_in_episode,
         obs_noise_std=tuple(args.obs_noise_std) if args.obs_noise_std else 0.0,
     )

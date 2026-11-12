@@ -1,5 +1,9 @@
 """Plots train_drone_policies.sh's whole grid: every noise x arm x PBRS x encoder config, over the seeds it has so far.
 
+Since 2026-11-11 the grid has the tracking controller and only observation noise 0.02/0.1, and plots go to
+storage/plots/drone_grid_tracking; the plots of the earlier grid, without the tracking controller and with and without
+noise, are in storage/plots/drone_grid.
+
 Reads the train_drone_policy.py --log CSVs in --storage/logs whose settings are one of the script's configs (naming.py's
 DRONE_SWEEP with DRONE_SWEEP_NOISES, DRONE_SWEEP_ARMS and DRONE_SWEEP_BETAS) and writes, under --out:
   curves_<noise>.pdf     training curves under one observation noise. Rows: success, rejection, lambda, episode length;
@@ -39,7 +43,9 @@ from plot_drone_policies import (LABELS, UNSHARED, METHODS, COLORS, SURFACE, INK
 SAMPLER, MAX_SIZE, P = "MIX", 5, None
 BASE = dict(DRONE_SWEEP, use_velocity_filter=True)
 DELTA = BASE["delta"]
-CONFIG = f"Mixture · max size {MAX_SIZE} · p = {P} · velocity filter · {BASE['total_timesteps'] / 1e6:g}M steps"
+CONFIG = (f"Mixture · max size {MAX_SIZE} · p = {P} · velocity filter"
+          f"{' + tracking controller' if BASE['use_tracking_controller'] else ''} · "
+          f"{BASE['total_timesteps'] / 1e6:g}M steps")
 
 # Names of the script's arms, past ones included (binary and safe_l1 until 2026-11-10), so re-adding one to
 # DRONE_SWEEP_ARMS plots it again.
@@ -305,7 +311,8 @@ def plot_compare_rows(runs, last, path):
                 y += 1
         group_ends.append(y - 0.3)
         y += 0.4
-    offsets = np.linspace(-0.2, 0.2, len(DRONE_SWEEP_NOISES))
+    # One marker per noise around each row's line, centered on it if there's only one
+    offsets = np.linspace(-0.2, 0.2, len(DRONE_SWEEP_NOISES)) if len(DRONE_SWEEP_NOISES) > 1 else [0.0]
     best = best_within_delta(runs)
     rejects = [final(run, "prob_reject") for run in runs.values()]
     reject_top = 1.15 * max([m + np.nan_to_num(s) for m, s in rejects if not np.isnan(m)] + [DELTA])
@@ -392,8 +399,10 @@ def plot_compare_scatter(runs, last, path):
     # unknown; a spacer between the noises
     widths = ([5, 1.1, 0.35] if binary else [5, 0.35]) * len(noises)
     per_noise = len(widths) // len(noises)
+    # squeeze=False: a single noise without binary arms is a single panel
     fig, axes = plt.subplots(1, len(widths) - 1, figsize=(12 if binary else 10.5, 6.4), sharey=True,
-                             gridspec_kw=dict(width_ratios=widths[:-1]))
+                             gridspec_kw=dict(width_ratios=widths[:-1]), squeeze=False)
+    axes = axes[0]
     for spacer in axes[per_noise - 1::per_noise]:
         spacer.axis("off")
     rejects = [final(run, "prob_reject") for run in runs.values()]
@@ -490,8 +499,8 @@ def main():
     parser = argparse.ArgumentParser(description="Plot every config of train_drone_policies.sh's grid")
     parser.add_argument("--storage", default="storage",
                         help="--save-dir of the runs; their CSV logs are read from {storage}/logs (default: storage)")
-    parser.add_argument("--out", default="storage/plots/drone_grid",
-                        help="Output directory (default: storage/plots/drone_grid)")
+    parser.add_argument("--out", default="storage/plots/drone_grid_tracking",
+                        help="Output directory (default: storage/plots/drone_grid_tracking)")
     parser.add_argument("--last", type=int, default=50,
                         help="Updates at the end of each run averaged into its final rates (default: 50)")
     parser.add_argument("--format", default="pdf", help="Figure file format (default: pdf)")
