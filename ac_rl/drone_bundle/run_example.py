@@ -3,12 +3,12 @@ onnxruntime. Use it as a template for driving a policy (see README.md).
 
 Acting with the action mean (the default) without observation noise, the policy and the simulator are deterministic:
 each episode should match the one in reference/rollouts.csv step for step. With --stochastic (sample actions as in
-training) and/or --obs-noise (add the observation noise of env.json, as in the training of rad_obs_noise), it runs
+training) and/or --obs-noise (add the observation noise of env.json, as in the policy's training), it runs
 --episodes episodes and its outcome rates should match the reference ones up to sampling noise (about +/- 0.1 over 100
 episodes; numpy's random numbers aren't the training code's).
 
   python run_example.py                                    # every policy on every DFA
-  python run_example.py --policy rad --dfa dfas/dfa_3.json --trace trace.csv
+  python run_example.py --policy rad_tracking --dfa dfas/dfa_3.json --trace trace.csv
   python run_example.py --stochastic [--obs-noise] [--episodes 100] [--seed 0]
 """
 import os
@@ -43,10 +43,14 @@ def truncated_normal(rng, size, bound):
 class Sim:
     """The training simulator (dfa_gym's DroneEnv) for one drone. There are no walls: leaving the box ends the episode.
 
+    With `tracking_controller`, the velocity filter doesn't move the drone directly: its position, velocity and
+    acceleration are the reference that the drone tracks through the controller and motor delay of env.json's
+    tracking_controller. The drone's own state is what the policy observes and what the regions and the box see.
+
     With a numpy Generator `noise_rng`, observations get env.json's observation noise; the dynamics and the regions
     always use the true state."""
 
-    def __init__(self, env, velocity_filter, noise_rng=None):
+    def __init__(self, env, velocity_filter, noise_rng=None, tracking_controller=False):
         self.low = np.array(env["box"]["low"], dtype=f32)
         self.high = np.array(env["box"]["high"], dtype=f32)
         self.dt = env["dt"]
@@ -56,6 +60,13 @@ class Sim:
         self.max_accel = env["velocity_filter"]["max_accel"]
         self.n_substeps = math.ceil(self.dt / env["velocity_filter"]["filter_dt"])
         self.h = self.dt / self.n_substeps
+        self.tracking_controller = tracking_controller
+        if tracking_controller:
+            tc = env["tracking_controller"]
+            self.kp = np.array(tc["kp"], dtype=f32)
+            self.kv = np.array(tc["kv"], dtype=f32)
+            # Fraction of the gap to the requested acceleration the motors close in one substep
+            self.motor_alpha = np.array([1.0 - math.exp(-self.h / t) for t in tc["motor_tau"]], dtype=f32)
         self.regions = env["regions"]
         noise = env["obs_noise"]
         self.noise_rng = noise_rng
@@ -63,7 +74,9 @@ class Sim:
         self.noise_bound = noise["truncate_sigmas"]
         self.p = np.array(env["start"]["position"], dtype=f32)
         self.v = np.array(env["start"]["velocity"], dtype=f32)
-        self.a = np.zeros(3, dtype=f32)  # velocity filter state; not observed by the policy
+        self.a = np.zeros(3, dtype=f32)  # velocity filter state (the drone's, with the tracking controller); not observed
+        # The velocity filter's state as the tracking controller's reference, starting at the drone; not observed
+        self.ref_p, self.ref_v, self.ref_a = self.p, self.v, self.a
         self.prev_p = self.p  # position one step earlier, so a token only fires on entering its region
 
     def obs(self):
@@ -82,19 +95,38 @@ class Sim:
             self.v = delta / f32(self.dt)
             return
         # The action, scaled by max_speed, is the target velocity of a critically damped second-order filter, held
-        # for dt and integrated in substeps of h, with the acceleration's norm limited to max_accel.
+        # for dt and integrated in substeps of h.
         target = action * f32(self.max_speed)
+        if not self.tracking_controller:
+            p, v, a = self.p, self.v, self.a
+            for _ in range(self.n_substeps):
+                p, v, a = self.filter_substep(p, v, a, target)
+            self.p, self.v, self.a = p, v, a
+            return
+        # The filter advances the reference; then the controller requests an acceleration toward it, which the motors
+        # reach with a first-order delay, and the drone integrates that.
+        ref_p, ref_v, ref_a = self.ref_p, self.ref_v, self.ref_a
         p, v, a = self.p, self.v, self.a
         for _ in range(self.n_substeps):
-            jerk = (target - v) / f32(self.tau ** 2) - f32(2.0) * a / f32(self.tau)
-            a_next = a + f32(self.h) * jerk
-            norm = np.linalg.norm(a_next)
-            if norm > self.max_accel:
-                a_next = a_next * (f32(self.max_accel) / norm)
-            v_next = v + f32(self.h) * a_next
+            ref_p, ref_v, ref_a = self.filter_substep(ref_p, ref_v, ref_a, target)
+            request = ref_a + self.kp * (ref_p - p) + self.kv * (ref_v - v)
+            a = a + self.motor_alpha * (request - a)
+            v_next = v + f32(self.h) * a
             p = p + f32(0.5 * self.h) * (v + v_next)
-            v, a = v_next, a_next
+            v = v_next
+        self.ref_p, self.ref_v, self.ref_a = ref_p, ref_v, ref_a
         self.p, self.v, self.a = p, v, a
+
+    def filter_substep(self, p, v, a, target):
+        """One substep h of the velocity filter, with the acceleration's norm limited to max_accel."""
+        jerk = (target - v) / f32(self.tau ** 2) - f32(2.0) * a / f32(self.tau)
+        a_next = a + f32(self.h) * jerk
+        norm = np.linalg.norm(a_next)
+        if norm > self.max_accel:
+            a_next = a_next * (f32(self.max_accel) / norm)
+        v_next = v + f32(self.h) * a_next
+        p = p + f32(0.5 * self.h) * (v + v_next)
+        return p, v_next, a_next
 
     def out_of_bounds(self):
         """Whether the drone has left the box (strictly), which ended the episode in training."""
@@ -183,7 +215,7 @@ def main():
     parser.add_argument("--stochastic", action="store_true",
                         help="Sample actions (action_mean + action_std * noise, clipped) instead of acting with the mean")
     parser.add_argument("--obs-noise", action="store_true",
-                        help="Add env.json's observation noise to every observation, as in rad_obs_noise's training")
+                        help="Add env.json's observation noise to every observation, as in the policy's training")
     parser.add_argument("--episodes", type=int, default=None,
                         help="With --stochastic or --obs-noise: episodes per policy and DFA (default: 100)")
     parser.add_argument("--seed", type=int, default=0, help="Seed of the action and observation noise (default: 0)")
@@ -218,7 +250,8 @@ def main():
             dfa = load_json(dfa_path)
             trace = [] if args.trace else None
             results = [
-                run_episode(policy, Sim(env, spec["velocity_filter"], rng if args.obs_noise else None), dfa,
+                run_episode(policy, Sim(env, spec["velocity_filter"], rng if args.obs_noise else None,
+                                        spec.get("tracking_controller", False)), dfa,
                             env["max_steps_in_episode"], trace)
                 for _ in range(episodes)
             ]
