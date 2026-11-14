@@ -47,13 +47,17 @@ from export_onnx import export, make_env
 from test_drone_policy import run_episodes
 from naming import DRONE_SWEEP, DRONE_SWEEP_ARMS, drone_run_name, checkpoint_path
 
-# train_drone_policies.sh's shaped PPO run with PBRS (beta 0.7, gamma 0.999, 2e7 steps): seed 1, the MIX sampler, max
-# size 5, p None, the pretrained RAD encoder, the velocity filter followed by the tracking controller, and observation
-# noise 0.02/0.1. The bundle before (2026-11-10, in git history) had that run without the tracking controller, trained
-# without and with observation noise ("rad" and "rad_obs_noise").
-SHAPED_RAD = dict(DRONE_SWEEP, **DRONE_SWEEP_ARMS["shaped"], seed=1, sampler="MIX", max_size=5, n_tokens=10, p=None,
-                  no_rad=False, use_velocity_filter=True)
-POLICIES = {"rad_tracking": checkpoint_path("storage", drone_run_name(SHAPED_RAD))}
+# train_drone_policies.sh's runs with PBRS (beta 0.7, gamma 0.999, 2e7 steps), seed 1, the MIX sampler, max size 5,
+# p None, the pretrained RAD encoder, the velocity filter followed by the tracking controller, and observation noise
+# 0.02/0.1: its shaped PPO arm, and its PPO-Lagrangian arm (rejection rate <= delta 0.05, lambda learned from 0). The
+# bundle before (2026-11-10, in git history) had the shaped PPO run without the tracking controller, trained without
+# and with observation noise ("rad" and "rad_obs_noise").
+RAD = dict(DRONE_SWEEP, seed=1, sampler="MIX", max_size=5, n_tokens=10, p=None, no_rad=False, use_velocity_filter=True)
+SHAPED_RAD = dict(RAD, **DRONE_SWEEP_ARMS["shaped"])
+POLICIES = {
+    "rad_tracking": checkpoint_path("storage", drone_run_name(SHAPED_RAD)),
+    "rad_tracking_constrained": checkpoint_path("storage", drone_run_name(dict(RAD, **DRONE_SWEEP_ARMS["safe_l0"]))),
+}
 # The observation noises every policy is evaluated under, by their names in reference/*.csv: none, and the policy's
 # training noise, (position std, velocity std).
 EVAL_NOISES = {"none" if n is None else f"{n[0]:g},{n[1]:g}": n for n in (None, SHAPED_RAD["obs_noise_std"])}
@@ -281,6 +285,8 @@ def main():
                     "algorithm": "PPO-Lagrangian" if p["cfg"]["safe"] else "PPO",
                     "reward": "binary" if p["cfg"]["binary_reward"] else "shaped",
                     "pbrs_beta": p["cfg"]["beta"],
+                    # PPO-Lagrangian's bound on the rejection rate
+                    **({"max_rejection_rate": p["cfg"]["delta"]} if p["cfg"]["safe"] else {}),
                     "obs_noise_std": None if p["cfg"]["obs_noise_std"] is None else list(p["cfg"]["obs_noise_std"]),
                     "gamma": p["cfg"]["gamma"],
                     "steps": p["cfg"]["total_timesteps"],
