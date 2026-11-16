@@ -1,39 +1,46 @@
-# RAD drone policy for DFA tasks (up to 5 DFA states), with controller tracking
+# RAD drone policies for DFA tasks (up to 5 DFA states), with controller tracking
 
-This bundle has one drone policy, `rad_tracking`. It flies a point-mass drone in a 3D box to complete a task given as a DFA (deterministic finite automaton) over 10 region tokens. The DFA reaches its goal when the drone visits regions in the right order, and it fails if the drone enters a forbidden region.
+This bundle has two drone policies. Each flies a point-mass drone in a 3D box to complete a task given as a DFA (deterministic finite automaton) over 10 region tokens. The DFA reaches its goal when the drone visits regions in the right order, and it fails if the drone enters a forbidden region.
 
-The policy reads the DFA through a pretrained, frozen RAD graph encoder, and the encoder is included in the ONNX model. Its actions are target velocities for the deployment velocity filter. The drone follows the filter through the stack's controller and motor delay (see [Actions](#actions)). It was trained on noisy observations (see [Observation noise](#observation-noise)).
+The policies read the DFA through a pretrained, frozen RAD graph encoder, and the encoder is included in the ONNX models. Their actions are target velocities for the deployment velocity filter. The drone follows the filter through the stack's controller and motor delay (see [Actions](#actions)). Both were trained on noisy observations (see [Observation noise](#observation-noise)).
+
+The two policies differ only in their training objective (see [Training and overall performance](#training-and-overall-performance)):
+
+| Policy | Trained with |
+|---|---|
+| `rad_tracking` | PPO on a shaped DFA reward |
+| `rad_tracking_constrained` | PPO-Lagrangian: the same reward, with the rejection rate on training tasks constrained to at most 5% |
 
 **Changed from the previous bundle:**
-- **Controller tracking.** The training simulator now uses your point-mass model of the stack. The velocity filter's position, velocity and acceleration are a reference, and the drone tracks it through the controller (gains KP, KV) and a first-order motor delay (TAU). Before, the drone followed the filter exactly. The drone now lags the filter and can overshoot its velocity. The policy observes the drone's own state, not the filter's.
-- **One policy**, `rad_tracking`, replaces `rad` and `rad_obs_noise`. It was trained like `rad_obs_noise`, with the same observation noise, but in the simulator with controller tracking.
-- `env.json` has the controller's gains under `tracking_controller`. `policies.json` marks the policy with `"tracking_controller": true`. `run_example.py` simulates the tracking.
+- **Controller tracking.** The training simulator now uses your point-mass model of the stack. The velocity filter's position, velocity and acceleration are a reference, and the drone tracks it through the controller (gains KP, KV) and a first-order motor delay (TAU). Before, the drone followed the filter exactly. The drone now lags the filter and can overshoot its velocity. The policies observe the drone's own state, not the filter's.
+- **Two policies**, `rad_tracking` and `rad_tracking_constrained`, replace `rad` and `rad_obs_noise`. Both were trained like `rad_obs_noise`, with the same observation noise, but in the simulator with controller tracking. `rad_tracking_constrained` was also trained with a constraint on the rejection rate, like the earlier `rad_velocity_filter`, so its model has a `cost_value` output.
+- `env.json` has the controller's gains under `tracking_controller`. `policies.json` marks the policies with `"tracking_controller": true`. `run_example.py` simulates the tracking.
 
-The world, the regions, the example DFAs, and the ONNX inputs and outputs are unchanged. As before, a region's token fires only on the step the drone enters the region.
+The world, the regions, the example DFAs, and the ONNX inputs and outputs are unchanged, except for `rad_tracking_constrained`'s extra `cost_value` output. As before, a region's token fires only on the step the drone enters the region.
 
 Quick start (needs only `numpy` and `onnxruntime`):
 
 ```
 pip install numpy onnxruntime
-python run_example.py                          # deterministic: one episode per example DFA
-python run_example.py --stochastic             # stochastic: 100 sampled episodes per example DFA
+python run_example.py                          # deterministic: one episode per policy and example DFA
+python run_example.py --stochastic             # stochastic: 100 sampled episodes per policy and example DFA
 python run_example.py --obs-noise [--stochastic]   # the same with observation noise
 ```
 
-This runs the policy on the example DFAs in a numpy copy of the training simulator. Each result is printed next to the reference result from the training code.
+This runs the policies on the example DFAs in a numpy copy of the training simulator. Each result is printed next to the reference result from the training code.
 
 ## Contents
 
 | Path | |
 |---|---|
-| `policies/rad_tracking.onnx` | the policy |
-| `policies.json` | the policy's file, training settings, that it uses the velocity filter and the tracking controller, its max action and action std, and its training checkpoint |
+| `policies/rad_tracking.onnx`, `policies/rad_tracking_constrained.onnx` | the policies |
+| `policies.json` | each policy's file, training settings (with `max_rejection_rate` for the constrained one), that it uses the velocity filter and the tracking controller, its max action and action std, and its training checkpoint |
 | `env.json` | the training world: box, start state, step sizes, velocity-filter and tracking-controller parameters, token regions, observation noise |
-| `dfas/dfa_<i>.json` | the example tasks, with the policy's DFA inputs precomputed for every DFA state |
-| `reference/rollouts.csv` | how the policy does on each example DFA in the training simulator: with and without observation noise, deterministic and stochastic |
+| `dfas/dfa_<i>.json` | the example tasks, with the policies' DFA inputs precomputed for every DFA state |
+| `reference/rollouts.csv` | how each policy does on each example DFA in the training simulator: with and without observation noise, deterministic and stochastic |
 | `run_example.py` | reference implementation of the control loop below (numpy + onnxruntime), in every mode |
 
-## Running the policy
+## Running a policy
 
 Repeat one control step every `dt` = 0.1 s:
 
@@ -41,7 +48,7 @@ Repeat one control step every `dt` = 0.1 s:
 2. **DFA inputs:** take `policy_inputs[q]` from the task's DFA file, where `q` is the current DFA state. Start at `q = 0`.
 3. **Run the model and pick the action** (float32[3]):
    - **Deterministic:** `action = action_mean`. Each component is already in [-1, 1].
-   - **Stochastic:** `action = clip(action_mean + action_std * eps, -1, 1)`, with `eps` three independent standard normal samples, drawn fresh every step. This is how the policy acted in training. The clip to [-1, 1] (`max_action` in `policies.json`) is what the training simulator did to every action.
+   - **Stochastic:** `action = clip(action_mean + action_std * eps, -1, 1)`, with `eps` three independent standard normal samples, drawn fresh every step. This is how the policies acted in training. The clip to [-1, 1] (`max_action` in `policies.json`) is what the training simulator did to every action.
 4. **Apply the action** for `dt`. See [Actions](#actions).
 5. **Advance the DFA.** A token fires only on the step the drone enters its region. Using the regions in `env.json`, find the token of the region the drone is in now and the token of the region it was in one step earlier. Either token is -1 if the drone is in no region. If the two tokens differ and the current one is ≥ 0, set `q = transitions[q][token]`. Otherwise no token fires and `q` stays the same.
 6. **Stop** when `status[q]` is `"accept"` (task done) or `"reject"` (task failed). In training an episode also ended when the drone left the box (out of bounds) and after 500 steps (timeout).
@@ -59,15 +66,16 @@ ONNX inputs and outputs:
 | `n_states` | int64[5] | `policy_inputs[q]["n_states"]` |
 | output `action_mean` | float32[1, 3] | the mean of the trained Gaussian policy: the deterministic action |
 | output `value` | float32[1] | critic of the shaped training reward; not needed to act |
-| output `action_std` | float32[1, 3] | the Gaussian policy's standard deviation per axis, for the stochastic action. It doesn't depend on the inputs: [0.69, 0.68, 0.92] (also in `policies.json`) |
+| output `cost_value` | float32[1] | `rad_tracking_constrained` only: critic of the rejection cost (the discounted probability that the DFA rejects); not needed to act |
+| output `action_std` | float32[1, 3] | the Gaussian policy's standard deviation per axis, for the stochastic action. It doesn't depend on the inputs: [0.69, 0.68, 0.92] for `rad_tracking` and [0.44, 0.40, 0.61] for `rad_tracking_constrained` (also in `policies.json`) |
 
 The DFA inputs are a graph encoding of the task that remains in state `q` (the DFA restarted at `q` and minimized). Pass them exactly as given, zero padding rows included. They are precomputed for every DFA state, so you don't need the training code to run these tasks.
 
 ### Observation noise
 
-The policy was trained on observations with noise added: every observation, at the start and after every step, got fresh Gaussian noise with std 0.02 on each position axis and 0.1 on each velocity axis, truncated to ±3 std (`obs_noise` in `env.json`). Only the observation was noisy: the dynamics and the regions used the true state.
+Both policies were trained on observations with noise added: every observation, at the start and after every step, got fresh Gaussian noise with std 0.02 on each position axis and 0.1 on each velocity axis, truncated to ±3 std (`obs_noise` in `env.json`). Only the observation was noisy: the dynamics and the regions used the true state.
 
-On the drone, feed the policy the state estimate as it is; don't add noise. The noise only stands in for estimation error in simulation. `run_example.py --obs-noise` adds it, and the results below show the policy with and without it.
+On the drone, feed either policy the state estimate as it is; don't add noise. The noise only stands in for estimation error in simulation. `run_example.py --obs-noise` adds it, and the results below show both policies with and without it.
 
 ### Actions
 
@@ -91,13 +99,13 @@ p       = p + h * (v + v_new) / 2
 | y | 7.1 | 2.4 | 0.080019 |
 | z | 11.9 | 6.7 | 0.058938 |
 
-These are the stack's position gain, velocity gain and motor delay, as in your point-mass model. The reference starts at the drone (the origin, at rest). The policy observes the drone's position and velocity. The filter's state and both accelerations are not observed. Because the drone lags the filter, its velocity can exceed `max_speed`.
+These are the stack's position gain, velocity gain and motor delay, as in your point-mass model. The reference starts at the drone (the origin, at rest). The policies observe the drone's position and velocity. The filter's state and both accelerations are not observed. Because the drone lags the filter, its velocity can exceed `max_speed`.
 
 `Sim.step` in `run_example.py` has the update exactly. There are no walls: the simulator doesn't stop or clip the drone anywhere.
 
 ## World
 
-All training episodes start at the origin with zero velocity, inside the box [-1, 1]³. The policy has never seen anything else, so map the real arena into this frame. An episode ended as soon as the drone left the box, so the policy has learned to stay inside it but has no experience near or past its walls.
+All training episodes start at the origin with zero velocity, inside the box [-1, 1]³. The policies have never seen anything else, so map the real arena into this frame. An episode ended as soon as the drone left the box, so the policies have learned to stay inside it but have no experience near or past its walls.
 
 There are 10 tokens. Each region is a prism over z ∈ [-0.75, 0.25], so the drone is in no region when it is above z = 0.25 or below z = -0.75. It can fly over regions.
 
@@ -144,9 +152,11 @@ The examples are written by hand and are the same as in the previous bundle. "Av
 | `dfa_4` | 5 | reach 1 avoiding 3, then 0 avoiding 7, then 1 avoiding 6 |
 | `dfa_5` | 4 | reach 0, avoiding 1; entering 2 or 3 first means visiting 1 before 0 counts again, avoiding 4 and 5 meanwhile (the FMCAD'22 example) |
 
-Outcomes in the training simulator (`reference/rollouts.csv`), with exact and with noisy observations:
+Outcomes in the training simulator (`reference/rollouts.csv`), for each policy with exact and with noisy observations:
 - **Deterministic without noise:** one episode acting with `action_mean`. The simulator is deterministic, so a single episode gives the outcome.
 - **Every other column:** 100 episodes. The success rate, followed by any nonzero rate of rejection (rej), leaving the box (oob) or timeout.
+
+`rad_tracking`:
 
 | DFA | exact obs, deterministic | exact obs, stochastic | noisy obs, deterministic | noisy obs, stochastic |
 |---|---|---|---|---|
@@ -157,30 +167,47 @@ Outcomes in the training simulator (`reference/rollouts.csv`), with exact and wi
 | `dfa_4` | accept, 90 steps | 0.95 (rej 0.04, timeout 0.01) | 1.00 | 0.97 (rej 0.03) |
 | `dfa_5` | timeout, 500 steps | 0.96 (rej 0.03, timeout 0.01) | 0.97 (timeout 0.03) | 0.99 (rej 0.01) |
 
-What the table shows:
-- **`dfa_0`–`dfa_3`** are solved in every episode, in every mode. The drone never left the box on any example.
-- **Deterministic:** the policy never rejects. With exact observations it stalls on `dfa_5` until it times out. With noisy observations it stalls on 3% of `dfa_5` episodes and solves everything else.
-- **Stochastic:** it rejects on `dfa_4` and `dfa_5` in 1–4% of episodes.
-- **Compared with the previous bundle's `rad_obs_noise`:** deterministic mode stalls less. `rad_obs_noise` timed out on four of the six tasks with noisy observations, up to 20% of the time. Stochastic mode rejects slightly more often, up to 4% instead of at most 1%.
+`rad_tracking_constrained`:
 
-`python run_example.py` reproduces the deterministic exact-observation column with the ONNX model, step for step. `python run_example.py --stochastic` and/or `--obs-noise` reproduce the other columns up to sampling noise (about ±0.1 over 100 episodes), since their random numbers differ from the training code's.
+| DFA | exact obs, deterministic | exact obs, stochastic | noisy obs, deterministic | noisy obs, stochastic |
+|---|---|---|---|---|
+| `dfa_0` | accept, 28 steps | 1.00 | 1.00 | 1.00 |
+| `dfa_1` | accept, 47 steps | 1.00 | 1.00 | 1.00 |
+| `dfa_2` | accept, 29 steps | 1.00 | 1.00 | 1.00 |
+| `dfa_3` | accept, 16 steps | 1.00 | 1.00 | 1.00 |
+| `dfa_4` | **reject, 26 steps** | 0.75 (rej 0.25) | 0.76 (rej 0.24) | 0.78 (rej 0.22) |
+| `dfa_5` | accept, 57 steps | 0.91 (rej 0.09) | 0.98 (rej 0.02) | 0.92 (rej 0.07, oob 0.01) |
+
+What the tables show:
+- **`dfa_0`–`dfa_3`** are solved by both policies in every episode, in every mode.
+- **`rad_tracking`** never rejects when acting deterministically. With exact observations it stalls on `dfa_5` until it times out, and with noisy observations it stalls on 3% of `dfa_5` episodes. Sampling actions, it rejects `dfa_4` and `dfa_5` in 1–4% of episodes.
+- **`rad_tracking_constrained`** solves every example quickly except `dfa_4`, which it rejects in about a quarter of episodes in every mode, including the deterministic one. It reaches 1 at the right edge and then the corner 0 at the bottom right. From there it flies back north to that same 1, through region 6, which this task forbids at that point (going around, or to the 1 at the bottom edge, would avoid it). It also rejects `dfa_5` in 2–9% of episodes. It never stalls.
+- **So on these examples the constrained policy rejects more, not less.** Its constraint bounds the average rejection rate over random training tasks, where both policies reject about 3% of the time (see [Training and overall performance](#training-and-overall-performance)), not on any particular task.
+- **Compared with the previous bundle's `rad_obs_noise`:** `rad_tracking` stalls less when deterministic, but rejects slightly more often when stochastic (up to 4% instead of at most 1%).
+- The drone left the box in only one of all these episodes.
+
+`python run_example.py` reproduces the deterministic exact-observation column with the ONNX models, step for step. `python run_example.py --stochastic` and/or `--obs-noise` reproduce the other columns up to sampling noise (about ±0.1 over 100 episodes), since their random numbers differ from the training code's.
 
 ## Training and overall performance
 
-The policy was trained with PPO for 20M steps in the simulator above, with observation noise, seed 1. Tasks were random DFAs with up to 5 states over the 10 tokens, every size equally likely: an equal mix of reach (visit tokens in order), reach-avoid (the same, with a forbidden token at each step) and randomly mutated reach-avoid tasks. The reward was +1 when the DFA accepts, -1 when it rejects and 0 otherwise, including on leaving the box or timing out. It was discounted by 0.999 and shaped by the DFA's distance to acceptance (potential-based, β = 0.7, so it doesn't change the optimal policy). It has no explicit constraint on the rejection rate.
+Both policies were trained for 20M steps in the simulator above, with observation noise, seed 1. Tasks were random DFAs with up to 5 states over the 10 tokens, every size equally likely: an equal mix of reach (visit tokens in order), reach-avoid (the same, with a forbidden token at each step) and randomly mutated reach-avoid tasks. The reward was +1 when the DFA accepts, -1 when it rejects and 0 otherwise, including on leaving the box or timing out. It was discounted by 0.999 and shaped by the DFA's distance to acceptance (potential-based, β = 0.7, so it doesn't change the optimal policy).
+
+- `rad_tracking` was trained with PPO on that reward, with no explicit constraint on the rejection rate.
+- `rad_tracking_constrained` was trained with PPO-Lagrangian. It maximized the same reward subject to a rejection rate of at most 5% on training tasks, with the Lagrange multiplier learned alongside the policy, starting from 0. The multiplier rose while the rejection rate was above 5%. By the end of training the rate was under the bound and the multiplier was back to 0, so the constraint no longer pushed on the policy.
 
 At the end of training (the last 50 PPO updates, about 0.4M steps, sampling actions, noisy observations), on random tasks from that distribution:
 
 | Policy | Success | Reject | Out of bounds or timeout |
 |---|---|---|---|
 | `rad_tracking` | 0.95 | 0.03 | 0.02 |
+| `rad_tracking_constrained` | 0.95 | 0.03 | 0.02 |
 | `rad_obs_noise` (previous bundle, no tracking) | 0.96 | 0.02 | 0.02 |
 
 ## Caveats
 
-- The policy is not safe by construction. Training penalized a rejection (reward −1) but did not constrain the rejection rate, and it rejects on about 3% of random tasks in simulation.
-- **Deterministic or stochastic.** Acting deterministically, the policy never rejected an example, but it can stall until it times out (`dfa_5`). Sampling actions avoided most stalls but rejected in up to 4% of episodes on `dfa_4` and `dfa_5`. Stochastic mode also sends noisy targets: `action_std` is 0.68–0.92 per axis on a [-1, 1] range, which the velocity filter and the tracking smooth. Check that the real drone tolerates that before flying it stochastically.
-- Leaving the box ended every training episode, so the policy has no experience at or beyond the walls. Keep a safety margin or geofence of your own around the mapped box.
+- Neither policy is safe by construction. Both reject on about 3% of random tasks in simulation. `rad_tracking_constrained`'s constraint is on the average rejection rate over training tasks, not a guarantee for any task, and it rejects `dfa_4` about a quarter of the time.
+- **Deterministic or stochastic.** Acting deterministically, `rad_tracking` never rejected an example, but it can stall until it times out (`dfa_5`). Sampling actions avoided most stalls but rejected in up to 4% of episodes on `dfa_4` and `dfa_5`. `rad_tracking_constrained` behaves about the same in both modes. Stochastic mode sends noisy targets: `action_std` is 0.68–0.92 per axis for `rad_tracking` and 0.40–0.61 for `rad_tracking_constrained`, on a [-1, 1] range, which the velocity filter and the tracking smooth. Check that the real drone tolerates that before flying a policy stochastically.
+- Leaving the box ended every training episode, so the policies have no experience at or beyond the walls. Keep a safety margin or geofence of your own around the mapped box.
 - The training simulator has no disturbances. The only noise is the observation noise, and the only model of the real drone's response is the controller tracking above, with fixed gains.
-- The policy only handles DFAs with at most 5 states over these 10 tokens. A new DFA's `policy_inputs` have to be computed with the training code (`dfax`). Send us the DFA and we can generate its file.
-- The policy is one training run (seed 1). Other seeds are still training.
+- The policies only handle DFAs with at most 5 states over these 10 tokens. A new DFA's `policy_inputs` have to be computed with the training code (`dfax`). Send us the DFA and we can generate its file.
+- Each policy is one training run (seed 1). Other seeds are still training.
