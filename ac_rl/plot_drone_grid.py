@@ -97,12 +97,13 @@ def all_keys():
             for encoder in METHODS for beta in DRONE_SWEEP_BETAS]
 
 
-def load_runs(storage, last):
+def load_runs(storage, last, base=BASE):
     """{(noise, arm, beta, encoder): {"df": per-timestep mean/std over seeds, "seeds", "incomplete": [(seed, last
-    step)], "steps": the last step all seeds reached, "final": {metric: (mean, std) over seeds}}}"""
+    step)], "steps": the last step all seeds reached, "final": {metric: (mean, std) over seeds}}}, of the runs with
+    `base`'s settings but the grid's noises, arms and betas."""
     # The grid's configs by their run settings (everything but the seed, sampler, sizes, p and encoder)
     configs = {
-        drone_run_settings(dict(BASE, obs_noise_std=noise, beta=beta, **DRONE_SWEEP_ARMS[arm])): (noise, arm, beta)
+        drone_run_settings(dict(base, obs_noise_std=noise, beta=beta, **DRONE_SWEEP_ARMS[arm])): (noise, arm, beta)
         for noise in DRONE_SWEEP_NOISES for arm in ARMS for beta in DRONE_SWEEP_BETAS
     }
     grouped = {}

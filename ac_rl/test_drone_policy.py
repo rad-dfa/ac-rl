@@ -65,6 +65,14 @@ def make_parser(description, n_default=100, gif_flag=True):
         help="Test on DFA sizes drawn with this p instead of --p; the encoder still follows --p (default: --p)"
     )
     parser.add_argument(
+        "--eval-max-size",
+        type=int,
+        default=None,
+        help="Test on DFAs of up to this many states instead of --max-size; the encoder (RAD's pretrained one too) "
+             "still follows --max-size, with a round of message passing per state of the largest test DFA "
+             "(default: --max-size)"
+    )
+    parser.add_argument(
         "--no-rad",
         action="store_true",
         help="Don't use pretrained RAD embeddings."
@@ -151,14 +159,20 @@ def make_parser(description, n_default=100, gif_flag=True):
 
 
 def eval_task(args):
-    """(sampler, p) of the test tasks: --eval-sampler/--eval-p, each defaulting to the training value."""
-    return args.eval_sampler or args.sampler, getattr(args, "eval_p", args.p)
+    """(sampler, p, max size) of the test tasks: --eval-sampler/--eval-p/--eval-max-size, each defaulting to the
+    training value."""
+    return (args.eval_sampler or args.sampler, getattr(args, "eval_p", args.p),
+            getattr(args, "eval_max_size", None) or args.max_size)
 
 
 def eval_suffix(args):
     """The suffix of the run name in output names for test tasks other than the training ones, else empty."""
-    eval_name, eval_p = eval_task(args)
-    return f"_eval_{eval_name}_p{num(eval_p)}" if (eval_name, eval_p) != (args.sampler, args.p) else ""
+    eval_name, eval_p, eval_max_size = eval_task(args)
+    if (eval_name, eval_p, eval_max_size) == (args.sampler, args.p, args.max_size):
+        return ""
+    # The max size only when it differs, so the names of the other test tasks are unchanged
+    size = f"_{eval_max_size}" if eval_max_size != args.max_size else ""
+    return f"_eval_{eval_name}{size}_p{num(eval_p)}"
 
 
 def setup(args):
@@ -180,11 +194,13 @@ def setup(args):
         obs_noise_std=tuple(args.obs_noise_std) if args.obs_noise_std else 0.0,
     )
 
-    # --eval-sampler/--eval-p only change the test tasks; the training ones still pick the encoder and name.
-    eval_name, eval_p = eval_task(args)
-    sampler = make_sampler(eval_name, args.max_size, drone_env.n_tokens, eval_p)
+    # --eval-sampler/--eval-p/--eval-max-size only change the test tasks; the training ones still pick the encoder and
+    # name.
+    eval_name, eval_p, eval_max_size = eval_task(args)
+    sampler = make_sampler(eval_name, eval_max_size, drone_env.n_tokens, eval_p)
     if eval_suffix(args):
-        print(f"Testing on {eval_name} tasks with p={eval_p} (trained on {args.sampler}, p={args.p})")
+        print(f"Testing on {eval_name} tasks of up to {eval_max_size} states with p={eval_p} "
+              f"(trained on {args.sampler}, up to {args.max_size} states, p={args.p})")
 
     env = DFAWrapper(
         env=drone_env,
@@ -193,20 +209,24 @@ def setup(args):
         binary_reward=args.binary_reward,
     )
 
+    # The encoder's max_size is only its rounds of message passing, which its params don't depend on: each DFA gets a
+    # round per state, up to max_size. On larger test DFAs (--eval-max-size), the same params get more rounds.
     if args.no_rad:
         encoder = EncoderModule(
             max_size=env.sampler.max_size
         )
     else:
-        # Must match train_drone_policy.py: the frozen encoder isn't stored in the checkpoint.
+        # Must match train_drone_policy.py: the frozen encoder isn't stored in the checkpoint, and --max-size picks it.
         encoder = Encoder(
-            max_size=env.sampler.max_size,
+            max_size=args.max_size,
             n_tokens=drone_env.n_tokens,
             seed=args.seed,
             binary_reward=args.binary_reward,
             sampler=args.sampler,
             p=args.p,
         )
+        if env.sampler.max_size != args.max_size:
+            encoder.encoder = EncoderModule(max_size=env.sampler.max_size)
 
     run_tag = drone_run_name(dict(vars(args), n_tokens=drone_env.n_tokens))
     expected_name = os.path.basename(checkpoint_path("", run_tag))
@@ -229,7 +249,12 @@ def setup(args):
     params = network.init(subkey, init_x)
 
     with open(args.model_path, "rb") as f:
-        params = serialization.from_bytes(params, f.read())
+        loaded = serialization.from_bytes(params, f.read())
+    # from_bytes doesn't check array shapes, so catch a checkpoint that doesn't fit the network built here
+    shapes = lambda tree: jax.tree_util.tree_map(jnp.shape, tree)
+    if shapes(loaded) != shapes(params):
+        raise ValueError(f"{args.model_path} doesn't fit the network built from its settings: parameter shapes differ")
+    params = loaded
 
     return drone_env, env, network, params, run_tag, key
 
