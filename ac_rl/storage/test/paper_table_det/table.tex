@@ -1,0 +1,17 @@
+\begin{tabular}{lcccccc}
+\toprule
+ & & & \multicolumn{2}{c}{In distribution ($\le 5$ states)} & \multicolumn{2}{c}{Out of distribution ($\le 10$ states)} \\
+\cmidrule(lr){4-5} \cmidrule(lr){6-7}
+Algorithm & RAD & PBRS & Success & Rejection & Success & Rejection \\
+\midrule
+PPO & \checkmark & \checkmark & $0.913 \pm 0.026$ & $0.017 \pm 0.004$ & $0.737 \pm 0.039$ & $0.044 \pm 0.007$ \\
+ & \checkmark & -- & $0.880 \pm 0.051$ & $0.023 \pm 0.013$ & $0.678 \pm 0.059$ & $0.056 \pm 0.024$ \\
+ & -- & \checkmark & $0.556 \pm 0.118$ & $0.040 \pm 0.011$ & $0.410 \pm 0.135$ & $0.037 \pm 0.017$ \\
+ & -- & -- & $0.521 \pm 0.128$ & $0.034 \pm 0.019$ & $0.337 \pm 0.108$ & $0.026 \pm 0.013$ \\
+\midrule
+PPO-Lagrangian & \checkmark & \checkmark & $\mathbf{0.944} \pm 0.012$ & $0.027 \pm 0.005$ & $\mathbf{0.795} \pm 0.025$ & $0.078 \pm 0.010$ \\
+ & \checkmark & -- & $0.845 \pm 0.058$ & $0.040 \pm 0.002$ & $0.637 \pm 0.091$ & $0.090 \pm 0.017$ \\
+ & -- & \checkmark & $0.504 \pm 0.160$ & $0.033 \pm 0.013$ & $0.366 \pm 0.152$ & $0.037 \pm 0.020$ \\
+ & -- & -- & $0.537 \pm 0.096$ & $0.058 \pm 0.018$ & $0.367 \pm 0.106$ & $0.048 \pm 0.015$ \\
+\bottomrule
+\end{tabular}
